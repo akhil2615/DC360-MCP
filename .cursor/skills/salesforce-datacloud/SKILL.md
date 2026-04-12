@@ -145,16 +145,20 @@ They produce **measures** (numeric aggregates) and **dimensions** (grouping keys
 - JOINs: INNER JOIN, LEFT JOIN, LEFT OUTER JOIN — use `ON` clause
 - The standard join path to unified profiles:
   `DMO → IndividualIdentityLink__dlm → UnifiedIndividual__dlm`
-- **GROUP BY MUST use alias names**, NOT field references:
-  - Correct: `GROUP BY customer_id__c`
-  - Wrong: `GROUP BY UnifiedIndividual__dlm.ssot__Id__c`
+- **Use `GROUPBY` (one word, no space)** — NOT `GROUP BY`:
+  - Correct: `GROUPBY customer_id__c`
+  - Wrong: `GROUP BY customer_id__c`
+- **GROUPBY MUST use alias names**, NOT field references:
+  - Correct: `GROUPBY customer_id__c`
+  - Wrong: `GROUPBY UnifiedIndividual__dlm.ssot__Id__c`
 - Put **measures (aggregates) BEFORE dimensions** in the SELECT list
 - Use **IFNULL()** for key qualifier matching in JOINs:
   `AND IFNULL(Table1.KQ_Field__c, '') = IFNULL(Table2.KQ_Field__c, '')`
 - **HAVING** clause supported for window function filtering:
   `HAVING RANK() OVER (ORDER BY SUM(amount)) < 1000`
-- If date arithmetic (`CURRENT_DATE - INTERVAL '90 days'`) fails in the CI builder,
-  use the **Lookback Period** setting in the CI UI instead
+- **NO date functions in WHERE** — `date_add()`, `CURRENT_DATE`, `CURRENT_TIMESTAMP`,
+  `INTERVAL` are all rejected by the CI builder parser.
+  Use the CI **Lookback Period** setting in the UI instead
 - Non-aggregate filters (e.g. name IS NOT NULL) — may need to be handled in the
   **Segment** on top of the CI if the CI builder rejects them
 - **Always verify syntax** by searching official docs before generating CI SQL
@@ -165,11 +169,12 @@ SELECT
     SUM(ssot__SalesOrder__dlm.ssot__GrandTotalAmount__c) AS customer_spend__c,
     UnifiedIndividual__dlm.ssot__Id__c AS CustomerId__c
 FROM ssot__SalesOrder__dlm
-LEFT JOIN IndividualIdentityLink__dlm
+JOIN IndividualIdentityLink__dlm
     ON ssot__SalesOrder__dlm.ssot__SoldToCustomerId__c = IndividualIdentityLink__dlm.SourceRecordId__c
-LEFT JOIN UnifiedIndividual__dlm
+    AND IFNULL(ssot__SalesOrder__dlm.KQ_SoldToCustomerId__c, '') = IFNULL(IndividualIdentityLink__dlm.KQ_SourceRecordId__c, '')
+LEFT OUTER JOIN UnifiedIndividual__dlm
     ON IndividualIdentityLink__dlm.UnifiedRecordId__c = UnifiedIndividual__dlm.ssot__Id__c
-GROUP BY CustomerId__c
+GROUPBY CustomerId__c
 ```
 
 **Common CI use cases:** LTV, RFM scoring, email engagement buckets,
