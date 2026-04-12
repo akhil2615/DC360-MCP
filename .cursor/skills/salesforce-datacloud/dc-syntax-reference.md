@@ -517,17 +517,34 @@ GROUP BY customer_id__c
 | Comparison | `=`, `<>`, `<`, `>`, `<=`, `>=`, `AND`, `OR`, `NOT` |
 | JOINs | `INNER JOIN`, `LEFT JOIN`, `LEFT OUTER JOIN` with `ON` |
 
-### CI NOT SUPPORTED (will cause syntax errors)
+### CI builder-specific rules (stricter parser than Query Editor)
 
-| Feature | Alternative |
-|---------|-------------|
-| `CURRENT_DATE` | Use CI Lookback Period setting in the UI |
-| `INTERVAL '90 days'` | Use CI Lookback Period setting in the UI |
-| Date arithmetic in WHERE | Configure lookback when creating the CI |
-| Non-aggregate filters in WHERE (e.g. `name IS NOT NULL`) | Apply these in the Segment on top of the CI |
-| GROUP BY with field references | GROUP BY MUST use alias names |
+The CI SQL builder has a more restrictive parser. These rules are critical:
 
-### CI GROUP BY rules
+```
+1. GROUP BY MUST use ALIAS names:
+   CORRECT: GROUP BY customer_id__c
+   WRONG:   GROUP BY UnifiedIndividual__dlm.ssot__Id__c
+
+2. SELECT order: measures (aggregates) BEFORE dimensions
+
+3. Key qualifier matching in JOINs — use IFNULL:
+   AND IFNULL(Table1.KQ_Field__c, '') = IFNULL(Table2.KQ_Field__c, '')
+
+4. HAVING clause — supported for window function filtering:
+   HAVING RANK() OVER (ORDER BY SUM(amount)) < 1000
+
+5. Date arithmetic — may fail in CI builder even though supported in SQL engine:
+   If CURRENT_DATE - INTERVAL '90 days' causes errors, use the CI
+   Lookback Period setting in the UI instead
+
+6. Non-aggregate WHERE filters — may be rejected by CI builder:
+   If WHERE name IS NOT NULL fails, apply the filter in the Segment instead
+
+7. Always verify syntax against current Salesforce docs before generating CI SQL
+```
+
+### CI GROUP BY example
 
 ```
 CORRECT:
@@ -541,7 +558,13 @@ WRONG:
   GROUP BY Table.Field
 ```
 
-Put measures (aggregates) BEFORE dimensions in the SELECT list.
+### CI JOIN with key qualifier matching (official Trailhead pattern)
+
+```sql
+JOIN IndividualIdentityLink__dlm
+    ON IndividualIdentityLink__dlm.SourceRecordId__c = ssot__EmailEngagement__dlm.ssot__IndividualId__c
+    AND IFNULL(IndividualIdentityLink__dlm.KQ_SourceRecordId__c, '') = IFNULL(ssot__EmailEngagement__dlm.KQ_IndividualId__c, '')
+```
 
 ---
 

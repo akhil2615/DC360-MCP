@@ -145,13 +145,19 @@ They produce **measures** (numeric aggregates) and **dimensions** (grouping keys
 - JOINs: INNER JOIN, LEFT JOIN, LEFT OUTER JOIN — use `ON` clause
 - The standard join path to unified profiles:
   `DMO → IndividualIdentityLink__dlm → UnifiedIndividual__dlm`
-- **NOT supported in CI SQL**: `CURRENT_DATE`, `INTERVAL`, date arithmetic
-  - Use the CI **Lookback Period** setting instead (configurable in CI UI)
 - **GROUP BY MUST use alias names**, NOT field references:
-  - Correct: `GROUP BY unified_individual_id__c`
+  - Correct: `GROUP BY customer_id__c`
   - Wrong: `GROUP BY UnifiedIndividual__dlm.ssot__Id__c`
 - Put **measures (aggregates) BEFORE dimensions** in the SELECT list
-- Non-aggregate filters (e.g. name IS NOT NULL) — handle in the **Segment**, not in CI WHERE
+- Use **IFNULL()** for key qualifier matching in JOINs:
+  `AND IFNULL(Table1.KQ_Field__c, '') = IFNULL(Table2.KQ_Field__c, '')`
+- **HAVING** clause supported for window function filtering:
+  `HAVING RANK() OVER (ORDER BY SUM(amount)) < 1000`
+- If date arithmetic (`CURRENT_DATE - INTERVAL '90 days'`) fails in the CI builder,
+  use the **Lookback Period** setting in the CI UI instead
+- Non-aggregate filters (e.g. name IS NOT NULL) — may need to be handled in the
+  **Segment** on top of the CI if the CI builder rejects them
+- **Always verify syntax** by searching official docs before generating CI SQL
 
 **Template — Spend by Customer:**
 ```sql
@@ -344,6 +350,22 @@ call `datacloud_help(question)` — it will answer using current Data Cloud know
 
 Call `debug_auth()` to see the resolved SF instance URL, DC c360a URL, and the
 exact metadata endpoint being used. This helps diagnose 404s or connection errors.
+
+## Code generation responsibility
+
+Before generating ANY code (formula, streaming transform, CI SQL, query, segment logic):
+
+1. **Verify field names** — call describe_data_lake_object or describe_data_model_object first
+2. **Verify syntax** — check dc-syntax-reference.md rules for the specific feature
+3. **When unsure** — search the web for current Salesforce documentation to confirm syntax
+4. **Test mentally** — walk through the generated code checking for:
+   - Correct field references (labels vs API names vs dot notation)
+   - Correct string quoting (single vs double)
+   - GROUP BY using aliases (for CIs)
+   - Explicit AS aliases (for streaming transforms)
+   - No unsupported functions (LEFT in transforms, IN with functions in transforms)
+   - No comments (in streaming transforms)
+5. **Never guess** — if a syntax pattern hasn't been validated, search for it first
 
 ## Additional syntax reference
 
