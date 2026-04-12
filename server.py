@@ -18,7 +18,9 @@ from dc_metadata_api import (
     ENTITY_TYPE_DMO,
     describe_object,
     get_fields_for_object,
+    get_raw_metadata,
     list_objects,
+    _parse_display_name,
 )
 
 logger = logging.getLogger(__name__)
@@ -270,10 +272,9 @@ def generate_streaming_transform(
 @mcp.tool(
     description=(
         "Generate syntactically valid SQL for a Calculated Insight in Data Cloud. "
-        "Data Cloud SQL follows PostgreSQL dialect with these constraints: "
-        "always double-quote identifiers, use __dlm suffix for DMO tables, "
-        "GROUP BY is required for all aggregates, no subqueries in FROM, "
-        "window functions are supported. "
+        "CI SQL uses table/field names directly (no double-quoting), "
+        "all aliases must end with __c suffix, GROUP BY uses alias names, "
+        "and the standard join path is DMO → IndividualIdentityLink__dlm → UnifiedIndividual__dlm. "
         "Inspects the relevant DMO schemas before generating."
     )
 )
@@ -281,7 +282,7 @@ def generate_calculated_insight_sql(
     dmo_names: list[str] = Field(
         description=(
             "List of DMO API names to include in the insight, "
-            "e.g. ['UnifiedIndividual__dlm', 'SalesOrder__dlm']. "
+            "e.g. ['UnifiedIndividual__dlm', 'ssot__SalesOrder__dlm']. "
             "Obtain names from list_data_model_objects."
         )
     ),
@@ -289,7 +290,7 @@ def generate_calculated_insight_sql(
         description=(
             "Plain-language description of what the insight should calculate. "
             "Example: 'Total lifetime spend per unified individual, "
-            "segmented by country, for the last 12 months.'"
+            "segmented by product category.'"
         )
     ),
 ) -> str:
@@ -297,7 +298,7 @@ def generate_calculated_insight_sql(
     for dmo in dmo_names:
         fields = get_fields_for_object(oauth_session, dmo, ENTITY_TYPE_DMO)
         field_list = "\n".join(
-            f"    - \"{f['name']}\" ({f.get('type', 'unknown')})" for f in fields
+            f"    - {f['name']} ({f.get('type', 'unknown')})" for f in fields
         )
         schema_blocks.append(f"### {dmo}\n{field_list}")
 
@@ -307,20 +308,35 @@ def generate_calculated_insight_sql(
         f"## DMO schemas\n{schema_text}\n\n"
         f"## Requested insight\n{insight_description}\n\n"
         "## Instructions for the AI assistant\n"
-        "Write a valid Data Cloud Calculated Insight SQL statement. Rules:\n"
-        "- Always double-quote ALL identifiers (tables and columns): "
-        'e.g. SELECT "Email__c" FROM "UnifiedIndividual__dlm"\n'
-        "- DMO table names always end in __dlm\n"
-        "- Calculated Insight measures must use aggregate functions: "
-        "SUM(), COUNT(), COUNT(DISTINCT), AVG(), MIN(), MAX()\n"
-        "- Every non-aggregated column in SELECT must appear in GROUP BY\n"
-        "- Use standard JOIN syntax: "
-        'JOIN "OtherObject__dlm" ON "t1"."Id__c" = "t2"."IndividualId__c"\n'
-        "- Time filtering: use DATE_TRUNC(), CURRENT_DATE, INTERVAL, "
-        "or DATEADD() for relative date ranges\n"
-        "- No correlated subqueries; use CTEs (WITH … AS (…)) instead\n"
-        "- Use only field names listed in the schemas above\n"
-        "- Format the SQL with clear indentation for readability\n"
+        "Write a valid Data Cloud Calculated Insight SQL statement.\n\n"
+        "### CRITICAL CI SQL RULES\n"
+        "- Use table/field names DIRECTLY — NO double-quoting needed\n"
+        "- Table aliases supported: FROM ssot__SalesOrder__dlm S\n"
+        "- All measure/dimension aliases MUST end with __c suffix:\n"
+        "  CORRECT: SUM(amount) AS total_spend__c\n"
+        "  WRONG:   SUM(amount) AS TotalSpend\n"
+        "- Every SELECT must produce at least one MEASURE (aggregate) and one DIMENSION\n"
+        "- GROUP BY uses the ALIAS name: GROUP BY CustomerId__c\n"
+        "- String literals use SINGLE QUOTES: 'value'\n"
+        "- Standard join path to unified profiles:\n"
+        "  DMO → IndividualIdentityLink__dlm (SourceRecordId__c) → UnifiedIndividual__dlm (ssot__Id__c)\n\n"
+        "### Supported functions\n"
+        "- Aggregate: SUM(), COUNT(), AVG(), MIN(), MAX(), FIRST()\n"
+        "- Window: ROW_NUMBER(), RANK(), DENSE_RANK(), NTILE() with OVER (ORDER BY ...)\n"
+        "- Conditional: CASE WHEN ... THEN ... ELSE ... END\n"
+        "- Date: CDPHour(), CURRENT_DATE, INTERVAL '30 days'\n"
+        "- Subquery: NOT IN (subquery), inline views FROM (SELECT ...) AS alias\n"
+        "- JOINs: INNER JOIN, LEFT JOIN, LEFT OUTER JOIN with ON clause\n\n"
+        "### Template — Spend by Customer\n"
+        "SELECT\n"
+        "    SUM(ssot__SalesOrder__dlm.ssot__GrandTotalAmount__c) AS customer_spend__c,\n"
+        "    UnifiedIndividual__dlm.ssot__Id__c AS CustomerId__c\n"
+        "FROM ssot__SalesOrder__dlm\n"
+        "LEFT JOIN IndividualIdentityLink__dlm\n"
+        "    ON ssot__SalesOrder__dlm.ssot__SoldToCustomerId__c = IndividualIdentityLink__dlm.SourceRecordId__c\n"
+        "LEFT JOIN UnifiedIndividual__dlm\n"
+        "    ON IndividualIdentityLink__dlm.UnifiedRecordId__c = UnifiedIndividual__dlm.ssot__Id__c\n"
+        "GROUP BY CustomerId__c\n"
     )
 
 
@@ -510,18 +526,33 @@ def troubleshoot_data(
         f"## Relevant table schemas\n{schema_text}\n\n"
         f"## Issue to investigate\n{issue_description}\n\n"
         "## Instructions for the AI assistant\n"
-        "Write one or more diagnostic SQL queries for the Data Cloud Query Editor. Rules:\n"
-        "- Always double-quote identifiers\n"
-        "- Use exact field names from the schema above\n"
-        "- Diagnose the specific issue described above using targeted queries:\n"
-        "    - NULL checks:  WHERE \"FieldName__c\" IS NULL\n"
-        "    - Duplicates:   GROUP BY … HAVING COUNT(*) > 1\n"
-        "    - Row counts:   SELECT COUNT(*) FROM …\n"
-        "    - Value spread: SELECT \"FieldName__c\", COUNT(*) GROUP BY 1 ORDER BY 2 DESC\n"
-        "    - Date range:   WHERE \"EventDate__c\" >= CURRENT_DATE - INTERVAL '7 days'\n"
-        "- Add a plain-language explanation of what each query checks and what "
-        "  the results would mean for the issue\n"
-        "- Keep queries LIMIT 1000 unless a full count is required\n"
+        "Write one or more diagnostic SQL queries for the Data Cloud Query Editor.\n\n"
+        "### Query Editor SQL rules (different from streaming transforms!)\n"
+        "- Use table/field names DIRECTLY — NO double-quoting needed\n"
+        "- Table aliases are supported: FROM ssot__Individual__dlm a\n"
+        "- Reference fields via alias: a.ssot__FirstName__c\n"
+        "- String literals use SINGLE QUOTES: 'value'\n"
+        "- JOINs: JOIN table ON (condition) — parentheses around ON condition\n"
+        "- Subqueries in WHERE and FROM (inline views) are supported\n"
+        "- Window functions: ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ...)\n"
+        "- Date arithmetic: column + interval '7 days'\n"
+        "- Always add LIMIT 10000 max (>10K may crash the Query Editor UI)\n"
+        "- Query timeout is 5 minutes\n"
+        "- Comments (-- style) ARE allowed in Query Editor\n\n"
+        "### Common diagnostic patterns\n"
+        "- NULL checks:  WHERE ssot__FirstName__c IS NULL\n"
+        "- Duplicates:   GROUP BY field HAVING COUNT(*) > 1\n"
+        "- Row counts:   SELECT COUNT(*) FROM table\n"
+        "- Value spread: SELECT field, COUNT(*) AS cnt FROM table GROUP BY 1 ORDER BY 2 DESC\n"
+        "- Date range:   WHERE ssot__CreatedDate__c >= CURRENT_DATE - INTERVAL '7 days'\n"
+        "- Latest per group: ROW_NUMBER() OVER (PARTITION BY key ORDER BY date DESC)\n\n"
+        "### Key DMO join paths\n"
+        "- Individual → Email: ssot__Individual__dlm.ssot__Id__c = ssot__ContactPointEmail__dlm.ssot__PartyId__c\n"
+        "- Individual → Phone: ssot__Individual__dlm.ssot__Id__c = ssot__ContactPointPhone__dlm.ssot__PartyId__c\n"
+        "- Individual → Address: ssot__Individual__dlm.ssot__Id__c = ssot__ContactPointAddress__dlm.ssot__PartyId__c\n"
+        "- Unified Link → Individual: IndividualIdentityLink__dlm.SourceRecordId__c = ssot__Individual__dlm.ssot__Id__c\n"
+        "- Unified Link → Unified Individual: IndividualIdentityLink__dlm.UnifiedRecordId__c = UnifiedIndividual__dlm.ssot__Id__c\n\n"
+        "- Add a plain-language explanation of what each query checks\n"
     )
 
 
@@ -581,6 +612,231 @@ def datacloud_help(
         "If the question is about syntax, refer the user to the appropriate "
         "code-generation tool (generate_formula, generate_calculated_insight_sql, etc.).\n"
     )
+
+
+# ---------------------------------------------------------------------------
+# DLO field export & DMO relationship export
+# ---------------------------------------------------------------------------
+
+def _extract_display(raw: str) -> str:
+    return _parse_display_name(raw)
+
+def _extract_category(raw: str) -> str:
+    if not raw or not isinstance(raw, str):
+        return ""
+    try:
+        import json as _json
+        parsed = _json.loads(raw)
+        if isinstance(parsed, dict):
+            return parsed.get("entityCategory", "")
+    except Exception:
+        pass
+    return ""
+
+
+@mcp.tool(
+    description=(
+        "Export all fields of a Data Lake Object in a structured format suitable "
+        "for documentation. Returns each field with: DLO name, DLO category, "
+        "field display name, field API name, and data type. "
+        "Use this when the user asks to document or list DLO fields."
+    )
+)
+def export_dlo_fields(
+    dlo_name: str = Field(description="Full API name of the DLO, e.g. 'Lead_Home__dll'."),
+) -> str:
+    raw = get_raw_metadata(oauth_session, entity_type=ENTITY_TYPE_DLO, entity_name=dlo_name)
+    if not raw:
+        fields = get_fields_for_object(oauth_session, dlo_name, ENTITY_TYPE_DLO)
+        dlo_display = dlo_name
+        dlo_category = ""
+    else:
+        entity = raw[0]
+        fields = entity.get("fields", [])
+        dlo_display = _extract_display(entity.get("displayName", dlo_name))
+        dlo_category = _extract_category(entity.get("displayName", ""))
+
+    header = "Data Lake Object Name\tData Lake Object Category\tDLO Field Name\tDLO Field API Name\tData Type"
+    rows = [header]
+    for f in fields:
+        fname = f.get("name", "")
+        fdisplay = _extract_display(f.get("displayName", fname))
+        ftype = f.get("type", "unknown")
+        rows.append(f"{dlo_display}\t{dlo_category}\t{fdisplay}\t{fname}\t{ftype}")
+
+    return "\n".join(rows)
+
+
+@mcp.tool(
+    description=(
+        "Export all fields of a Data Model Object in a structured format suitable "
+        "for documentation. Returns each field with: DMO name, DMO API name, DMO category, "
+        "DMO type (Standard/Custom), field display name, field API name, data type, "
+        "and whether the field is a primary key. "
+        "Use this when the user asks to document or list DMO fields."
+    )
+)
+def export_dmo_fields(
+    dmo_name: str = Field(description="Full API name of the DMO, e.g. 'ssot__Lead__dlm'."),
+) -> str:
+    raw = get_raw_metadata(oauth_session, entity_type=ENTITY_TYPE_DMO, entity_name=dmo_name)
+    if not raw:
+        fields = get_fields_for_object(oauth_session, dmo_name, ENTITY_TYPE_DMO)
+        dmo_display = dmo_name
+        dmo_category = ""
+        primary_keys = []
+    else:
+        entity = raw[0]
+        fields = entity.get("fields", [])
+        dmo_display = _extract_display(entity.get("displayName", dmo_name))
+        dmo_category = _extract_category(entity.get("displayName", ""))
+        primary_keys = [pk.get("name", "") for pk in entity.get("primaryKeys", [])]
+
+    dmo_type = "Standard" if dmo_name.startswith("ssot__") else "Custom"
+
+    header = "DMO Name\tDMO API Name\tDMO Category\tDMO Type\tDMO Field Name\tDMO Field API Name\tDMO Field Data Type\tPrimary Key"
+    rows = [header]
+    for f in fields:
+        fname = f.get("name", "")
+        fdisplay = _extract_display(f.get("displayName", fname))
+        ftype = f.get("type", "unknown")
+        is_pk = "Yes" if fname in primary_keys else ""
+        rows.append(f"{dmo_display}\t{dmo_name}\t{dmo_category}\t{dmo_type}\t{fdisplay}\t{fname}\t{ftype}\t{is_pk}")
+
+    return "\n".join(rows)
+
+
+@mcp.tool(
+    description=(
+        "Export the full DLO-to-DMO field mapping for a given Data Lake Object. "
+        "Returns a tab-separated table with columns: "
+        "Data Lake Object Name, Data Lake Object Category, DLO Field Name, "
+        "DLO Field API Name, Data Type, DMO Name, DMO API Name, DMO Field Name, "
+        "DMO Field API Name, DMO Field Data Type, DMO Type, DMO Category, "
+        "Primary Key/Engagement Date, Custom Field. "
+        "The AI assistant MUST fill in the DMO mapping columns based on "
+        "Data Cloud standard mapping conventions and save it as a CSV/Excel file. "
+        "Call list_data_model_objects and describe relevant DMOs to verify mappings."
+    )
+)
+def export_dlo_to_dmo_mapping(
+    dlo_name: str = Field(description="Full API name of the DLO, e.g. 'Lead_Home__dll'."),
+) -> str:
+    raw = get_raw_metadata(oauth_session, entity_type=ENTITY_TYPE_DLO, entity_name=dlo_name)
+    if not raw:
+        fields = get_fields_for_object(oauth_session, dlo_name, ENTITY_TYPE_DLO)
+        dlo_display = dlo_name
+        dlo_category = ""
+    else:
+        entity = raw[0]
+        fields = entity.get("fields", [])
+        dlo_display = _extract_display(entity.get("displayName", dlo_name))
+        dlo_category = _extract_category(entity.get("displayName", ""))
+
+    header = (
+        "Data Lake Object Name\tData Lake Object Category\t"
+        "DLO Field Name\tDLO Field API Name\tData Type\t"
+        "DMO Name\tDMO API Name\tDMO Field Name\tDMO Field API Name\t"
+        "DMO Field Data Type\tDMO Type\tDMO Category\t"
+        "Primary Key/Engagement Date\tCustom Field"
+    )
+    rows = [header]
+    for f in fields:
+        fname = f.get("name", "")
+        fdisplay = _extract_display(f.get("displayName", fname))
+        ftype = f.get("type", "unknown")
+        is_custom = "Yes" if not fname.startswith("ssot__") and not fname.startswith("cdp_sys_") and not fname.startswith("KQ_") else ""
+        rows.append(
+            f"{dlo_display}\t{dlo_category}\t{fdisplay}\t{fname}\t{ftype}\t"
+            f"\t\t\t\t\t\t\t\t{is_custom}"
+        )
+
+    return (
+        "## DLO fields exported\n"
+        "The DLO field columns are populated. The DMO mapping columns are blank.\n\n"
+        "## Instructions for the AI assistant\n"
+        "1. Call list_data_model_objects to get all DMOs in the org\n"
+        "2. Based on Data Cloud standard mapping conventions, fill in the DMO columns "
+        "for each DLO field:\n"
+        "   - Lead fields → ssot__Lead__dlm\n"
+        "   - Name fields (FirstName, LastName, Name) → ssot__Individual__dlm\n"
+        "   - Email fields → ssot__ContactPointEmail__dlm\n"
+        "   - Phone fields → ssot__ContactPointPhone__dlm\n"
+        "   - Address fields → ssot__ContactPointAddress__dlm\n"
+        "   - System/IR fields → leave DMO columns blank\n"
+        "3. Save the result as a .csv file in the project directory\n"
+        "4. NEVER add comments in the CSV data\n"
+        "5. Use the exact header format provided\n\n"
+        f"## Data\n{chr(10).join(rows)}\n"
+    )
+
+
+@mcp.tool(
+    description=(
+        "Export DMO-to-DMO relationships from the metadata API. "
+        "Returns a tab-separated table with columns: "
+        "DMO Object, DMO Field, Key Qualifier (Field), Cardinality, "
+        "Related DMO Object, Related DMO Field, Key Qualifier (Related Field). "
+        "Use this when the user asks about DMO relationships, data model diagrams, "
+        "or how DMOs connect to each other."
+    )
+)
+def export_dmo_relationships(
+    dmo_names: list[str] = Field(
+        default=[],
+        description=(
+            "List of DMO API names to get relationships for. "
+            "If empty, fetches all DMOs and their relationships."
+        ),
+    ),
+) -> str:
+    if dmo_names:
+        dmo_list = dmo_names
+    else:
+        all_dmos = list_objects(oauth_session, ENTITY_TYPE_DMO)
+        dmo_list = [d["name"] for d in all_dmos]
+
+    header = (
+        "DMO Object\tDMO Field\tKey Qualifier (Field)\t"
+        "Cardinality\tRelated DMO Object\tRelated DMO Field\t"
+        "Key Qualifier (Related Field)"
+    )
+    rows = [header]
+
+    for dmo_name in dmo_list:
+        try:
+            raw = get_raw_metadata(oauth_session, entity_type=ENTITY_TYPE_DMO, entity_name=dmo_name)
+            if not raw:
+                continue
+            entity = raw[0]
+            dmo_display = _extract_display(entity.get("displayName", dmo_name))
+
+            relationships = entity.get("relationships", [])
+            for rel in relationships:
+                rel_entity = rel.get("relatedEntity", "")
+                rel_field = rel.get("relatedField", "")
+                from_field = rel.get("fromField", rel.get("field", ""))
+                cardinality = rel.get("cardinality", rel.get("relationshipType", ""))
+                kq_field = rel.get("keyQualifierField", "")
+                kq_related = rel.get("relatedKeyQualifierField", "")
+                rows.append(
+                    f"{dmo_display}\t{from_field}\t{kq_field}\t"
+                    f"{cardinality}\t{rel_entity}\t{rel_field}\t{kq_related}"
+                )
+
+            for f in entity.get("fields", []):
+                kq = f.get("keyQualifier", "")
+                if kq:
+                    fname = f.get("name", "")
+                    fdisplay = _extract_display(f.get("displayName", fname))
+                    rows.append(
+                        f"{dmo_display}\t{fname}\t{kq}\t"
+                        f"\t\t\t"
+                    )
+        except Exception as e:
+            logger.warning(f"Could not fetch relationships for {dmo_name}: {e}")
+
+    return "\n".join(rows)
 
 
 if __name__ == "__main__":

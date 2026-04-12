@@ -1,0 +1,78 @@
+DLO Field (Lead_Home__dll),Display Name,Type,Target DMO,DMO Field,DMO Display Name,Mapping Status
+Id__c,Id,text,ssot__Lead__dlm,ssot__Id__c,Lead Id,Mapped
+KQ_Id__c,KQ_Id,text,ssot__Lead__dlm,KQ_Id__c,Key Qualifier Lead Id,Mapped
+Email__c,Email,text,ssot__ContactPointEmail__dlm,ssot__EmailAddress__c,Email Address,Mapped
+FirstName__c,FirstName,text,ssot__Individual__dlm,ssot__FirstName__c,First Name,Mapped
+LastName__c,LastName,text,ssot__Individual__dlm,ssot__LastName__c,Last Name,Mapped
+Name__c,Name,text,ssot__Individual__dlm,ssot__FullName__c,Full Name,Mapped
+Salutation__c,Salutation,text,ssot__Individual__dlm,ssot__Salutation__c,Salutation,Mapped
+Phone__c,Phone,text,ssot__ContactPointPhone__dlm,ssot__TelephoneNumber__c,Telephone Number,Mapped
+MobilePhone__c,MobilePhone,text,ssot__ContactPointPhone__dlm,ssot__TelephoneNumber__c,Telephone Number (Mobile),Verify - may need separate Contact Point
+Fax__c,Fax,text,ssot__ContactPointPhone__dlm,ssot__TelephoneNumber__c,Telephone Number (Fax),Verify - may need separate Contact Point
+Street__c,Street,text,ssot__ContactPointAddress__dlm,ssot__AddressLine1__c,Address Line 1,Mapped
+City__c,City,text,ssot__ContactPointAddress__dlm,ssot__CityName__c,City Name,Mapped
+State__c,State,text,ssot__ContactPointAddress__dlm,ssot__StateProvinceName__c,State Province Name,Mapped
+PostalCode__c,PostalCode,text,ssot__ContactPointAddress__dlm,ssot__PostalCodeId__c,Postal Code,Mapped
+Country__c,Country,text,ssot__ContactPointAddress__dlm,ssot__CountryName__c,Country Name,Mapped
+Latitude__c,Latitude,numeric,ssot__ContactPointAddress__dlm,ssot__GeoLatitude__c,Geo Latitude,Mapped
+Longitude__c,Longitude,numeric,ssot__ContactPointAddress__dlm,ssot__GeoLongitude__c,Geo Longitude,Mapped
+Company__c,Company,text,ssot__Lead__dlm,ssot__CompanyName__c,Company Name,Mapped
+Title__c,Title,text,ssot__Lead__dlm,ssot__Title__c,Title,Mapped
+Industry__c,Industry,text,ssot__Lead__dlm,ssot__IndustryId__c,Industry,Mapped
+AnnualRevenue__c,AnnualRevenue,numeric,ssot__Lead__dlm,ssot__AnnualRevenue__c,Annual Revenue,Mapped
+Rating__c,Rating,text,ssot__Lead__dlm,ssot__LeadRating__c,Lead Rating,Mapped
+LeadSource__c,LeadSource,text,ssot__Lead__dlm,ssot__LeadSourceId__c,Lead Source,Mapped
+Status__c,Status,text,ssot__Lead__dlm,ssot__LeadStatusId__c,Lead Status,Mapped
+Description__c,Description,text,ssot__Lead__dlm,ssot__Description__c,Description,Mapped
+Website__c,Website,text,ssot__Lead__dlm,ssot__Website__c,Website,Mapped
+PhotoUrl__c,PhotoUrl,text,ssot__Lead__dlm,ssot__PhotoURL__c,Photo URL,Mapped
+IsConverted__c,IsConverted,text,ssot__Lead__dlm,ssot__IsConverted__c,Is Converted,Mapped
+ConvertedDate__c,ConvertedDate,timestamptz,ssot__Lead__dlm,ssot__ConvertedDate__c,Converted Date,Mapped
+ConvertedAccountId__c,ConvertedAccount,text,ssot__Lead__dlm,ssot__ConvertedToAccountId__c,Converted To Account,Mapped
+KQ_ConvertedAccountId__c,KQ_ConvertedAccountId,text,ssot__Lead__dlm,KQ_ConvertedToAccountId__c,KQ Converted To Account,Mapped
+ConvertedContactId__c,ConvertedContact,text,ssot__Lead__dlm,ssot__ConvertedToAccountContactId__c,Converted To AccountContact,Mapped
+KQ_ConvertedContactId__c,KQ_ConvertedContactId,text,ssot__Lead__dlm,KQ_ConvertedToAccountContactId__c,KQ Converted To AccountContact,Mapped
+ConvertedOpportunityId__c,ConvertedOpportunity,text,ssot__Lead__dlm,ssot__ConvertedToOpportunityId__c,Converted To Opportunity,Mapped
+KQ_ConvertedOpportunityId__c,KQ_ConvertedOpportunityId,text,ssot__Lead__dlm,KQ_ConvertedToOpportunityId__c,KQ Converted To Opportunity,Mapped
+EmailBouncedDate__c,EmailBouncedDate,timestamptz,ssot__Lead__dlm,ssot__EmailBouncedDate__c,EmailBouncedDate,Mapped
+EmailBouncedReason__c,EmailBouncedReason,text,ssot__Lead__dlm,ssot__EmailBouncedReason__c,EmailBouncedReason,Mapped
+CreatedDate__c,CreatedDate,timestamptz,ssot__Lead__dlm,ssot__CreatedDate__c,Created Date,Mapped
+LastModifiedDate__c,LastModifiedDate,timestamptz,ssot__Lead__dlm,ssot__LastModifiedDate__c,Last Modified Date,Mapped
+LastActivityDate__c,LastActivityDate,timestamptz,ssot__Lead__dlm,ssot__LastActivityDate__c,Last Activity Date,Mapped
+OwnerId__c,Owner,text,ssot__Lead__dlm,ssot__OwnerId__c,Owner,Mapped
+IndividualId__c,Individual,text,ssot__Lead__dlm,ssot__PartyId__c,Party,Mapped
+DataSource__c,Data Source,text,ssot__Lead__dlm,ssot__DataSourceId__c,Data Source,Mapped
+DataSourceObject__c,Data Source Object,text,ssot__Lead__dlm,ssot__DataSourceObjectId__c,Data Source Object,Mapped
+GeocodeAccuracy__c,GeocodeAccuracy,text,ssot__ContactPointAddress__dlm,,Geo Code Accuracy,Verify - may not have DMO field
+GenderIdentity__c,GenderIdentity,text,ssot__Individual__dlm,ssot__GenderIdentity__c,Gender Identity,Verify
+Pronouns__c,Pronouns,text,ssot__Individual__dlm,ssot__Pronouns__c,Pronouns,Verify
+DoNotCall__c,DoNotCall,text,,,Not Mapped - consent related,Not Mapped
+HasOptedOutOfEmail__c,HasOptedOutOfEmail,text,,,Not Mapped - consent related,Not Mapped
+HasOptedOutOfFax__c,HasOptedOutOfFax,text,,,Not Mapped - consent related,Not Mapped
+HasPrivacyHold__c,HasPrivacyHold,text,,,Not Mapped - privacy related,Not Mapped
+NumberOfEmployees__c,NumberOfEmployees,numeric,,,Not Mapped - no standard DMO field,Not Mapped
+PartnerAccountId__c,PartnerAccount,text,,,Not Mapped,Not Mapped
+CurrencyIsoCode__c,CurrencyIsoCode,text,,,Not Mapped,Not Mapped
+Jigsaw__c,Jigsaw,text,,,Not Mapped,Not Mapped
+JigsawContactId__c,JigsawContact,text,,,Not Mapped,Not Mapped
+RecordTypeId__c,RecordType,text,,,Not Mapped,Not Mapped
+MasterRecordId__c,MasterRecord,text,,,Not Mapped - system field,Not Mapped
+IsDeleted__c,IsDeleted,text,,,Not Mapped - system field,Not Mapped
+IsLocked__c,IsLocked,text,,,Not Mapped - system field,Not Mapped
+IsPriorityRecord__c,IsPriorityRecord,text,,,Not Mapped - system field,Not Mapped
+IsUnreadByOwner__c,IsUnreadByOwner,text,,,Not Mapped - system field,Not Mapped
+CreatedById__c,CreatedBy,text,,,Not Mapped - system field,Not Mapped
+LastModifiedById__c,LastModifiedBy,text,,,Not Mapped - system field,Not Mapped
+LastReferencedDate__c,LastReferencedDate,timestamptz,,,Not Mapped - UI tracking,Not Mapped
+LastTransferDate__c,LastTransferDate,timestamptz,,,Not Mapped,Not Mapped
+LastViewedDate__c,LastViewedDate,timestamptz,,,Not Mapped - UI tracking,Not Mapped
+SystemModstamp__c,SystemModstamp,timestamptz,,,Not Mapped - system field,Not Mapped
+SfdcOrganizationId__c,SfdcOrganizationId,text,,,Not Mapped - system field,Not Mapped
+cdp_sys_SourceVersion__c,cdp_sys_SourceVersion,text,,,Not Mapped - system field,Not Mapped
+IdentityIsAMatch__c,IdentityIsAMatch,boolean,,,Not Mapped - IR system field,Not Mapped
+IdentityMatchId__c,IdentityMatchId,text,,,Not Mapped - IR system field,Not Mapped
+IdentityMatchingObject__c,IdentityMatchingObject,text,,,Not Mapped - IR system field,Not Mapped
+IdentityMatchType__c,IdentityMatchType,text,,,Not Mapped - IR system field,Not Mapped
+IdentityMatchWeight__c,IdentityMatchWeight,text,,,Not Mapped - IR system field,Not Mapped
+IdentityObject__c,IdentityObject,text,,,Not Mapped - IR system field,Not Mapped
+KQ_IdentityMatchId__c,KQ_IdentityMatchId,text,,,Not Mapped - IR system field,Not Mapped

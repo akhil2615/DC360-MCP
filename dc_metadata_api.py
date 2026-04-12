@@ -224,3 +224,16 @@ def get_fields_for_object(
         return entity.get("fields", [])
     except Exception:
         return _sql_get_fields(oauth_session, entity_name)
+
+
+def get_raw_metadata(
+    oauth_session: OAuthSession,
+    entity_type: Optional[str] = None,
+    entity_name: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Return the unprocessed metadata response including primaryKeys, relationships, category."""
+    try:
+        return _rest_get_metadata(oauth_session, entity_type=entity_type, entity_name=entity_name)
+    except Exception as e:
+        logger.warning(f"REST metadata failed ({e}), raw metadata not available via SQL fallback")
+        return []
