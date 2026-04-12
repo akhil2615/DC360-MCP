@@ -344,11 +344,12 @@ Bulk Email Msg → Market Segment:    ssot__BulkEmailMessage__dlm.ssot__MarketSe
    CORRECT:  SUM(amount) AS total_spend__c
    WRONG:    SUM(amount) AS TotalSpend
 4. Every SELECT must have at least one MEASURE (aggregate) and one DIMENSION
-5. Use GROUPBY (ONE WORD, no space) with ALIAS names:
-   CORRECT:  GROUPBY CustomerId__c
-   WRONG:    GROUPBY CustomerId__c
-   WRONG:    GROUPBY UnifiedIndividual__dlm.ssot__Id__c
-6. String literals use SINGLE QUOTES: 'value'
+5. GROUP BY (with space) MUST use ALIAS names:
+   CORRECT:  GROUP BY CustomerId__c
+   WRONG:    GROUP BY UnifiedIndividual__dlm.ssot__Id__c
+6. Write entire CI SQL as a SINGLE LINE — the CI builder parser
+   may split on line breaks and reject remaining text as invalid
+7. String literals use SINGLE QUOTES: 'value'
 7. Standard join path to unified profiles:
    DMO → IndividualIdentityLink__dlm (SourceRecordId__c) → UnifiedIndividual__dlm (ssot__Id__c)
 8. Use IFNULL for key qualifier matching in JOINs:
@@ -390,7 +391,7 @@ LEFT JOIN IndividualIdentityLink__dlm
     ON ssot__SalesOrder__dlm.ssot__SoldToCustomerId__c = IndividualIdentityLink__dlm.SourceRecordId__c
 LEFT JOIN UnifiedIndividual__dlm
     ON IndividualIdentityLink__dlm.UnifiedRecordId__c = UnifiedIndividual__dlm.ssot__Id__c
-GROUPBY CustomerId__c
+GROUP BY CustomerId__c
 ```
 | Measure | Dimension |
 |---------|-----------|
@@ -414,7 +415,7 @@ LEFT JOIN ssot__SalesOrderProduct__dlm
     ON ssot__SalesOrderProduct__dlm.ssot__SalesOrderId__c = ssot__SalesOrder__dlm.ssot__OrderNumber__c
 LEFT JOIN ssot__GoodsProduct__dlm
     ON ssot__SalesOrderProduct__dlm.ssot__ProductId__c = ssot__GoodsProduct__dlm.ssot__ProductSKU__c
-GROUPBY CustomerId__c, PurchaseHour__c, ProductCategory__c, SalesChannel__c
+GROUP BY CustomerId__c, PurchaseHour__c, ProductCategory__c, SalesChannel__c
 ```
 
 ### Customer Rank by Spend (window functions)
@@ -430,7 +431,7 @@ INNER JOIN IndividualIdentityLink__dlm
     ON UnifiedIndividual__dlm.ssot__Id__c = IndividualIdentityLink__dlm.UnifiedRecordId__c
 INNER JOIN ssot__SalesOrder__dlm
     ON IndividualIdentityLink__dlm.SourceRecordId__c = ssot__SalesOrder__dlm.ssot__SoldToCustomerId__c
-GROUPBY Unified_Individual__c
+GROUP BY Unified_Individual__c
 ```
 
 ### RFM Scoring with NTILE and subquery
@@ -453,9 +454,9 @@ FROM (
         ON ssot__SalesOrder__dlm.ssot__SoldToCustomerId__c = IndividualIdentityLink__dlm.SourceRecordId__c
     LEFT JOIN UnifiedIndividual__dlm
         ON UnifiedIndividual__dlm.ssot__Id__c = IndividualIdentityLink__dlm.UnifiedRecordId__c
-    GROUPBY UnifiedIndividual__dlm.ssot__Id__c
+    GROUP BY UnifiedIndividual__dlm.ssot__Id__c
 ) AS sub
-GROUPBY sub.cust_id__c
+GROUP BY sub.cust_id__c
 ```
 
 ### CASE bucketing (driver safety example pattern)
@@ -478,9 +479,9 @@ FROM (
         ON ssot__EmailEngagement__dlm.ssot__IndividualId__c = IndividualIdentityLink__dlm.SourceRecordId__c
     JOIN UnifiedIndividual__dlm
         ON IndividualIdentityLink__dlm.UnifiedRecordId__c = UnifiedIndividual__dlm.ssot__Id__c
-    GROUPBY UnifiedIndividual__dlm.ssot__Id__c
+    GROUP BY UnifiedIndividual__dlm.ssot__Id__c
 ) AS S
-GROUPBY id__c
+GROUP BY id__c
 ```
 
 ### Email Open Count per Unified Individual
@@ -495,7 +496,7 @@ JOIN IndividualIdentityLink__dlm
     AND ssot__EmailEngagement__dlm.ssot__EngagementChannelActionId__c = 'Open'
 JOIN UnifiedIndividual__dlm
     ON UnifiedIndividual__dlm.ssot__Id__c = IndividualIdentityLink__dlm.UnifiedRecordId__c
-GROUPBY customer_id__c
+GROUP BY customer_id__c
 ```
 
 ### NOT IN with WHERE subquery
@@ -510,7 +511,7 @@ WHERE ssot__SalesOrder__dlm.ssot__SoldToCustomerId__c NOT IN (
     FROM ssot__Individual__dlm
     WHERE ssot__Individual__dlm.Loyalty_Reward_Points__c > 10
 )
-GROUPBY customer_id__c
+GROUP BY customer_id__c
 ```
 
 ### CI Supported functions reference
@@ -531,9 +532,9 @@ GROUPBY customer_id__c
 The CI SQL builder has a more restrictive parser. These rules are critical:
 
 ```
-1. GROUPBY MUST use ALIAS names:
-   CORRECT: GROUPBY customer_id__c
-   WRONG:   GROUPBY UnifiedIndividual__dlm.ssot__Id__c
+1. GROUP BY MUST use ALIAS names:
+   CORRECT: GROUP BY customer_id__c
+   WRONG:   GROUP BY UnifiedIndividual__dlm.ssot__Id__c
 
 2. SELECT order: measures (aggregates) BEFORE dimensions
 
@@ -553,19 +554,16 @@ The CI SQL builder has a more restrictive parser. These rules are critical:
 7. Always verify syntax against current Salesforce docs before generating CI SQL
 ```
 
-### CI GROUPBY example
+### CI GROUP BY rules
 
 ```
 CORRECT:
-  SELECT COUNT(x) AS count__c, Table.Field AS dimension__c
-  FROM ...
-  GROUPBY dimension__c
+  SELECT COUNT(x) AS count__c, Table.Field AS dimension__c FROM ... GROUP BY dimension__c
 
 WRONG (field reference instead of alias):
-  GROUPBY Table.Field
+  GROUP BY Table.Field
 
-WRONG (space between GROUP and BY):
-  GROUP BY dimension__c
+IMPORTANT: Write the entire SQL as a single line for the CI builder
 ```
 
 ### CI JOIN with key qualifier matching (official Trailhead pattern)

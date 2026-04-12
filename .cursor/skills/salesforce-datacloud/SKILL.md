@@ -145,12 +145,11 @@ They produce **measures** (numeric aggregates) and **dimensions** (grouping keys
 - JOINs: INNER JOIN, LEFT JOIN, LEFT OUTER JOIN — use `ON` clause
 - The standard join path to unified profiles:
   `DMO → IndividualIdentityLink__dlm → UnifiedIndividual__dlm`
-- **Use `GROUPBY` (one word, no space)** — NOT `GROUP BY`:
-  - Correct: `GROUPBY customer_id__c`
-  - Wrong: `GROUP BY customer_id__c`
-- **GROUPBY MUST use alias names**, NOT field references:
-  - Correct: `GROUPBY customer_id__c`
-  - Wrong: `GROUPBY UnifiedIndividual__dlm.ssot__Id__c`
+- **GROUP BY** (with space) MUST use **alias names**, NOT field references:
+  - Correct: `GROUP BY customer_id__c`
+  - Wrong: `GROUP BY UnifiedIndividual__dlm.ssot__Id__c`
+- CRITICAL: Write the **entire CI SQL as a single line** — the CI builder parser
+  may split on line breaks and treat remaining text as invalid
 - Put **measures (aggregates) BEFORE dimensions** in the SELECT list
 - Use **IFNULL()** for key qualifier matching in JOINs:
   `AND IFNULL(Table1.KQ_Field__c, '') = IFNULL(Table2.KQ_Field__c, '')`
@@ -163,18 +162,9 @@ They produce **measures** (numeric aggregates) and **dimensions** (grouping keys
   **Segment** on top of the CI if the CI builder rejects them
 - **Always verify syntax** by searching official docs before generating CI SQL
 
-**Template — Spend by Customer:**
+**Template — Spend by Customer (single line — required by CI builder):**
 ```sql
-SELECT
-    SUM(ssot__SalesOrder__dlm.ssot__GrandTotalAmount__c) AS customer_spend__c,
-    UnifiedIndividual__dlm.ssot__Id__c AS CustomerId__c
-FROM ssot__SalesOrder__dlm
-JOIN IndividualIdentityLink__dlm
-    ON ssot__SalesOrder__dlm.ssot__SoldToCustomerId__c = IndividualIdentityLink__dlm.SourceRecordId__c
-    AND IFNULL(ssot__SalesOrder__dlm.KQ_SoldToCustomerId__c, '') = IFNULL(IndividualIdentityLink__dlm.KQ_SourceRecordId__c, '')
-LEFT OUTER JOIN UnifiedIndividual__dlm
-    ON IndividualIdentityLink__dlm.UnifiedRecordId__c = UnifiedIndividual__dlm.ssot__Id__c
-GROUPBY CustomerId__c
+SELECT SUM(ssot__SalesOrder__dlm.ssot__GrandTotalAmount__c) AS customer_spend__c, UnifiedIndividual__dlm.ssot__Id__c AS CustomerId__c FROM ssot__SalesOrder__dlm JOIN IndividualIdentityLink__dlm ON ssot__SalesOrder__dlm.ssot__SoldToCustomerId__c = IndividualIdentityLink__dlm.SourceRecordId__c AND IFNULL(ssot__SalesOrder__dlm.KQ_SoldToCustomerId__c, '') = IFNULL(IndividualIdentityLink__dlm.KQ_SourceRecordId__c, '') LEFT OUTER JOIN UnifiedIndividual__dlm ON IndividualIdentityLink__dlm.UnifiedRecordId__c = UnifiedIndividual__dlm.ssot__Id__c GROUP BY CustomerId__c
 ```
 
 **Common CI use cases:** LTV, RFM scoring, email engagement buckets,
