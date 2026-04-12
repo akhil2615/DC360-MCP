@@ -511,11 +511,37 @@ GROUP BY customer_id__c
 | Aggregate | `SUM()`, `COUNT()`, `AVG()`, `MIN()`, `MAX()`, `FIRST()` |
 | Window | `ROW_NUMBER()`, `RANK()`, `DENSE_RANK()`, `NTILE()` with `OVER (ORDER BY ...)` |
 | Conditional | `CASE WHEN ... THEN ... ELSE ... END` |
-| Date | `CDPHour()`, `CURRENT_DATE`, `INTERVAL '30 days'` |
+| Date | `CDPHour()` for time-period dimensions |
 | Subquery | `NOT IN (subquery)`, inline views `FROM (SELECT ...) AS alias` |
 | String | Standard string functions |
 | Comparison | `=`, `<>`, `<`, `>`, `<=`, `>=`, `AND`, `OR`, `NOT` |
 | JOINs | `INNER JOIN`, `LEFT JOIN`, `LEFT OUTER JOIN` with `ON` |
+
+### CI NOT SUPPORTED (will cause syntax errors)
+
+| Feature | Alternative |
+|---------|-------------|
+| `CURRENT_DATE` | Use CI Lookback Period setting in the UI |
+| `INTERVAL '90 days'` | Use CI Lookback Period setting in the UI |
+| Date arithmetic in WHERE | Configure lookback when creating the CI |
+| Non-aggregate filters in WHERE (e.g. `name IS NOT NULL`) | Apply these in the Segment on top of the CI |
+| GROUP BY with field references | GROUP BY MUST use alias names |
+
+### CI GROUP BY rules
+
+```
+CORRECT:
+  SELECT COUNT(x) AS count__c, Table.Field AS dimension__c
+  FROM ...
+  GROUP BY dimension__c
+
+WRONG:
+  SELECT COUNT(x) AS count__c, Table.Field AS dimension__c
+  FROM ...
+  GROUP BY Table.Field
+```
+
+Put measures (aggregates) BEFORE dimensions in the SELECT list.
 
 ---
 

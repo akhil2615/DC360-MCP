@@ -145,6 +145,13 @@ They produce **measures** (numeric aggregates) and **dimensions** (grouping keys
 - JOINs: INNER JOIN, LEFT JOIN, LEFT OUTER JOIN — use `ON` clause
 - The standard join path to unified profiles:
   `DMO → IndividualIdentityLink__dlm → UnifiedIndividual__dlm`
+- **NOT supported in CI SQL**: `CURRENT_DATE`, `INTERVAL`, date arithmetic
+  - Use the CI **Lookback Period** setting instead (configurable in CI UI)
+- **GROUP BY MUST use alias names**, NOT field references:
+  - Correct: `GROUP BY unified_individual_id__c`
+  - Wrong: `GROUP BY UnifiedIndividual__dlm.ssot__Id__c`
+- Put **measures (aggregates) BEFORE dimensions** in the SELECT list
+- Non-aggregate filters (e.g. name IS NOT NULL) — handle in the **Segment**, not in CI WHERE
 
 **Template — Spend by Customer:**
 ```sql
