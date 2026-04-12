@@ -1,0 +1,311 @@
+erDiagram
+    UnifiedIndividual__dlm {
+        text ssot__Id__c PK
+        text ssot__FirstName__c
+        text ssot__LastName__c
+        text ssot__PersonName__c
+        text ssot__Salutation__c
+        text ssot__TitleName__c
+        timestamptz ssot__BirthDate__c
+        text ssot__GenderIdentity__c
+        text ssot__Pronoun__c
+        text ssot__IsAnonymous__c
+        text ssot__ExternalRecordId__c
+        text ssot__PrimaryAccountId__c FK
+        text ssot__PhotoURL__c
+        timestamptz ssot__CreatedDate__c
+        timestamptz ssot__LastModifiedDate__c
+    }
+
+    IndividualIdentityLink__dlm {
+        text SourceRecordId__c FK
+        text UnifiedRecordId__c FK
+        text KQ_SourceRecordId__c
+        text ssot__DataSourceObjectId__c
+        text MatchKeys__c
+        numeric PriorityBucket__c
+        timestamptz CreatedDate__c
+    }
+
+    ssot__Individual__dlm {
+        text ssot__Id__c PK
+        text ssot__FirstName__c
+        text ssot__LastName__c
+        text ssot__PersonName__c
+        text ssot__Salutation__c
+        text ssot__TitleName__c
+        timestamptz ssot__BirthDate__c
+        text ssot__GenderIdentity__c
+        text ssot__IsAnonymous__c
+        text ssot__PrimaryAccountId__c FK
+        text ssot__PartyId__c
+        text ssot__DataSourceId__c
+        text ssot__DataSourceObjectId__c
+        timestamptz ssot__CreatedDate__c
+        timestamptz ssot__LastModifiedDate__c
+    }
+
+    ssot__Account__dlm {
+        text ssot__Id__c PK
+        text ssot__Name__c
+        text ssot__Number__c
+        text ssot__AccountSource__c
+        text ssot__AccountType__c
+        text ssot__PrimaryIndustry__c
+        numeric ssot__AnnualRevenueAmount__c
+        numeric ssot__EmployeeCount__c
+        text ssot__Description__c
+        text ssot__ParentAccountId__c FK
+        text ssot__OwnerId__c
+        text ssot__BillContactAddressId__c FK
+        text ssot__SalesPhoneId__c FK
+        text ssot__DataSourceId__c
+        timestamptz ssot__CreatedDate__c
+        timestamptz ssot__LastModifiedDate__c
+    }
+
+    ssot__AccountContact__dlm {
+        text ssot__Id__c PK
+        text ssot__AccountId__c FK
+        text ssot__IndividualId__c FK
+        text ssot__FirstName__c
+        text ssot__LastName__c
+        text ssot__Title__c
+        text ssot__ContactEmailId__c FK
+        text ssot__BusinessPhoneId__c FK
+        text ssot__MobilePhoneId__c FK
+        text ssot__HomePhoneId__c FK
+        text ssot__MailingAddressId__c FK
+        text ssot__OwnerId__c
+        timestamptz ssot__CreatedDate__c
+        timestamptz ssot__LastModifiedDate__c
+    }
+
+    ssot__Lead__dlm {
+        text ssot__Id__c PK
+        text ssot__PartyId__c FK
+        text ssot__CompanyName__c
+        text ssot__Title__c
+        text ssot__LeadStatusId__c
+        text ssot__LeadSourceId__c
+        text ssot__LeadRating__c
+        text ssot__IndustryId__c
+        numeric ssot__AnnualRevenue__c
+        text ssot__ContactPointEmailId__c FK
+        text ssot__PhoneContactPointId__c FK
+        text ssot__IsConverted__c
+        text ssot__ConvertedToAccountId__c FK
+        text ssot__ConvertedToOpportunityId__c FK
+        text ssot__DataSourceId__c
+        timestamptz ssot__CreatedDate__c
+        timestamptz ssot__LastModifiedDate__c
+    }
+
+    ssot__ContactPointEmail__dlm {
+        text ssot__Id__c PK
+        text ssot__PartyId__c FK
+        text ssot__EmailAddress__c
+        timestamptz ssot__EmailLatestBounceDateTime__c
+        text ssot__EmailLatestBounceReasonText__c
+        text ssot__DataSourceId__c
+        timestamptz ssot__CreatedDate__c
+        timestamptz ssot__LastModifiedDate__c
+    }
+
+    ssot__ContactPointPhone__dlm {
+        text ssot__Id__c PK
+        text ssot__PartyId__c FK
+        text ssot__TelephoneNumber__c
+        text ssot__FormattedE164PhoneNumber__c
+        text ssot__ForPersonalUse__c
+        text ssot__ForBusinessUse__c
+        text ssot__DataSourceId__c
+        timestamptz ssot__CreatedDate__c
+        timestamptz ssot__LastModifiedDate__c
+    }
+
+    ssot__ContactPointAddress__dlm {
+        text ssot__Id__c PK
+        text ssot__PartyId__c FK
+        text ssot__AddressLine1__c
+        text ssot__CityName__c
+        text ssot__StateProvinceName__c
+        text ssot__PostalCodeId__c
+        text ssot__CountryName__c
+        text ssot__DataSourceId__c
+        timestamptz ssot__CreatedDate__c
+        timestamptz ssot__LastModifiedDate__c
+    }
+
+    ssot__EmailEngagement__dlm {
+        text ssot__Id__c PK
+        text ssot__IndividualId__c FK
+        text ssot__EngagementChannelActionId__c
+        timestamptz ssot__EngagementDateTm__c
+        text ssot__SendtimeEmailAddress__c
+        text ssot__EmailRecipientSendStatus__c
+        text ssot__BounceReasonText__c
+        text ssot__EmailBounceType__c
+        text ssot__ResolvedURL__c
+        text ssot__FlowElementRunId__c FK
+        text ssot__BulkEmailMessageId__c FK
+        text ssot__ContactPointId__c FK
+        text ssot__DataSourceId__c
+    }
+
+    ssot__WebsiteEngagement__dlm {
+        text ssot__Id__c PK
+        text ssot__IndividualId__c FK
+        text ssot__EngagementChannelActionId__c
+        timestamptz ssot__EngagementDateTm__c
+        text ssot__PagePublicTitleName__c
+        text ssot__LinkURL__c
+        text ssot__ReferrerURL__c
+        text ssot__BrowserName__c
+        text ssot__OSName__c
+        text ssot__DataSourceId__c
+    }
+
+    ssot__MessageEngagement__dlm {
+        text ssot__Id__c PK
+        text ssot__IndividualId__c FK
+        text ssot__EngagementChannelActionId__c
+        timestamptz ssot__EngagementDateTm__c
+        text ssot__DataSourceId__c
+    }
+
+    ssot__ProductBrowseEngagement__dlm {
+        text ssot__Id__c PK
+        text ssot__IndividualId__c FK
+        timestamptz ssot__EngagementDateTm__c
+        text ssot__DataSourceId__c
+    }
+
+    ssot__FlowElementRun__dlm {
+        text ssot__Id__c PK
+        text ssot__FlowElementId__c FK
+        text ssot__DataSourceId__c
+    }
+
+    ssot__FlowElement__dlm {
+        text ssot__Id__c PK
+        text ssot__Name__c
+        text ssot__FlowVersionId__c FK
+    }
+
+    ssot__FlowRun__dlm {
+        text ssot__Id__c PK
+        text ssot__FlowId__c FK
+        text ssot__DataSourceId__c
+    }
+
+    ssot__BulkEmailMessage__dlm {
+        text ssot__Id__c PK
+        text ssot__Subject__c
+        text ssot__FromAddress__c
+        text ssot__MessagePurpose__c
+        text ssot__MarketSegmentId__c FK
+    }
+
+    ssot__Campaign__dlm {
+        text ssot__Id__c PK
+        text ssot__Name__c
+        text ssot__DataSourceId__c
+    }
+
+    ssot__CampaignMember__dlm {
+        text ssot__Id__c PK
+        text ssot__IndividualId__c FK
+        text ssot__CampaignId__c FK
+        text ssot__DataSourceId__c
+    }
+
+    ssot__Opportunity__dlm {
+        text ssot__Id__c PK
+        text ssot__Name__c
+        text ssot__DataSourceId__c
+    }
+
+    ssot__OpportunityContact__dlm {
+        text ssot__Id__c PK
+        text ssot__IndividualId__c FK
+        text ssot__OpportunityId__c FK
+        text ssot__DataSourceId__c
+    }
+
+    ssot__MarketSegment__dlm {
+        text ssot__Id__c PK
+        text ssot__Name__c
+    }
+
+    ssot__GoodsProduct__dlm {
+        text ssot__Id__c PK
+        text ssot__ProductSKU__c
+        text ssot__BrandId__c
+        text Category__c
+    }
+
+    ssot__IdentityMatch__dlm {
+        text ssot__Id__c PK
+        text ssot__RecordId__c FK
+        text ssot__MatchingRecordId__c
+        text ssot__IdentityMatchType__c
+        numeric ssot__IdentityMatchWeight__c
+        text ssot__IsAMatch__c
+        timestamptz ssot__CreatedDate__c
+    }
+
+    ssot__CommunicationSubscriptionConsent__dlm {
+        text ssot__Id__c PK
+        text ssot__PartyId__c FK
+        text ssot__ConsentStatus__c
+        text ssot__ContactPointValueText__c
+        text ssot__CommunicationSubscriptionChannelTypeId__c FK
+        text ssot__ConsentCapturedSourceName__c
+        text ssot__ConsentCapturedSourceType__c
+        timestamptz ssot__ConsentCapturedDateTime__c
+        timestamptz ssot__LastModifiedDate__c
+    }
+
+    ssot__CommunicationSubscriptionChannelType__dlm {
+        text ssot__Id__c PK
+        text ssot__CommunicationSubscriptionId__c FK
+        text ssot__EngagementChannelTypeId__c FK
+    }
+
+    ssot__CommunicationSubscription__dlm {
+        text ssot__Id__c PK
+        text ssot__Name__c
+    }
+
+    ssot__EngagementChannelType__dlm {
+        text ssot__Id__c PK
+        text ssot__Name__c
+    }
+
+    UnifiedIndividual__dlm ||--o{ IndividualIdentityLink__dlm : "UnifiedRecordId"
+    IndividualIdentityLink__dlm }o--|| ssot__Individual__dlm : "SourceRecordId"
+    ssot__Individual__dlm }o--o| ssot__Account__dlm : "PrimaryAccountId"
+    ssot__Individual__dlm ||--o{ ssot__ContactPointEmail__dlm : "PartyId"
+    ssot__Individual__dlm ||--o{ ssot__ContactPointPhone__dlm : "PartyId"
+    ssot__Individual__dlm ||--o{ ssot__ContactPointAddress__dlm : "PartyId"
+    ssot__Individual__dlm ||--o{ ssot__EmailEngagement__dlm : "IndividualId"
+    ssot__Individual__dlm ||--o{ ssot__WebsiteEngagement__dlm : "IndividualId"
+    ssot__Individual__dlm ||--o{ ssot__MessageEngagement__dlm : "IndividualId"
+    ssot__Individual__dlm ||--o{ ssot__ProductBrowseEngagement__dlm : "IndividualId"
+    ssot__Individual__dlm ||--o{ ssot__IdentityMatch__dlm : "RecordId"
+    ssot__Account__dlm ||--o{ ssot__AccountContact__dlm : "AccountId"
+    ssot__Individual__dlm ||--o{ ssot__AccountContact__dlm : "IndividualId"
+    ssot__Individual__dlm ||--o{ ssot__CampaignMember__dlm : "IndividualId"
+    ssot__Campaign__dlm ||--o{ ssot__CampaignMember__dlm : "CampaignId"
+    ssot__Individual__dlm ||--o{ ssot__OpportunityContact__dlm : "IndividualId"
+    ssot__Opportunity__dlm ||--o{ ssot__OpportunityContact__dlm : "OpportunityId"
+    ssot__Individual__dlm ||--o{ ssot__Lead__dlm : "PartyId"
+    ssot__EmailEngagement__dlm }o--|| ssot__FlowElementRun__dlm : "FlowElementRunId"
+    ssot__FlowElementRun__dlm }o--|| ssot__FlowElement__dlm : "FlowElementId"
+    ssot__EmailEngagement__dlm }o--o| ssot__BulkEmailMessage__dlm : "BulkEmailMessageId"
+    ssot__BulkEmailMessage__dlm }o--o| ssot__MarketSegment__dlm : "MarketSegmentId"
+    ssot__Account__dlm }o--o| ssot__Account__dlm : "ParentAccountId"
+    ssot__CommunicationSubscriptionConsent__dlm }o--|| ssot__CommunicationSubscriptionChannelType__dlm : "ChannelTypeId"
+    ssot__CommunicationSubscriptionChannelType__dlm }o--|| ssot__CommunicationSubscription__dlm : "SubscriptionId"
+    ssot__CommunicationSubscriptionChannelType__dlm }o--|| ssot__EngagementChannelType__dlm : "ChannelTypeId"

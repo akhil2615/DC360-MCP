@@ -164,11 +164,11 @@ Query Editor SQL uses standard PostgreSQL dialect with DMO API names directly
 ```
 1. Table names are DMO/DLO API names used directly: ssot__Individual__dlm
 2. Field names include the full prefix: ssot__FirstName__c, ssot__Id__c
-3. No double-quoting required (unlike Calculated Insights)
+3. No double-quoting required (same as Calculated Insights and Streaming Transforms)
 4. Table aliases are supported: FROM ssot__Individual__dlm a
 5. Fields reference via alias: a.ssot__FirstName__c
 6. String literals use SINGLE QUOTES: 'value'
-7. JOIN syntax: JOIN table ON (condition)  — parentheses around ON condition
+7. JOIN syntax: JOIN table ON condition
 8. Subqueries in WHERE are supported
 9. Window functions: ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ...)
 10. Date arithmetic: column + interval '9 hour'
@@ -733,34 +733,40 @@ They are SQL queries with `DLOName.FieldName` dot notation.
    Use SUBSTRING(text, start, length) instead of LEFT(text, n)
 ```
 
-### Normalize phone contacts (official Salesforce example)
+### Normalize phone contacts (official Salesforce example, adapted for single quotes)
 
 ```sql
 SELECT
-    CONCAT(Contact_core__dll.CustomerId, "_Mobile") AS PhoneId,
+    CONCAT(Contact_core__dll.CustomerId, '_Mobile') AS PhoneId,
     Contact_core__dll.CustomerId AS CustomerId,
     Contact_core__dll.MobilePhone AS PhoneNumber,
-    "Mobile" AS PhoneType
+    'Mobile' AS PhoneType
 FROM Contact_core__dll
-WHERE ISNOTNULL(Contact_core__dll.MobilePhone) AND Contact_core__dll.MobilePhone <> ""
+WHERE ISNOTNULL(Contact_core__dll.MobilePhone) AND Contact_core__dll.MobilePhone <> ''
 UNION
 SELECT
-    CONCAT(Contact_core__dll.CustomerId, "_Home") AS PhoneId,
+    CONCAT(Contact_core__dll.CustomerId, '_Home') AS PhoneId,
     Contact_core__dll.CustomerId AS CustomerId,
     Contact_core__dll.HomePhone AS PhoneNumber,
-    "Home" AS PhoneType
+    'Home' AS PhoneType
 FROM Contact_core__dll
-WHERE ISNOTNULL(Contact_core__dll.HomePhone) AND Contact_core__dll.HomePhone <> ""
+WHERE ISNOTNULL(Contact_core__dll.HomePhone) AND Contact_core__dll.HomePhone <> ''
 ```
 
-### Conditional mapping
+### Conditional mapping (chained OR instead of IN with UPPER)
 
 ```sql
 SELECT
     Lead_Home__dll.Id__c AS Id__c,
     CASE
-        WHEN UPPER(TRIM(Lead_Home__dll.Country__c)) IN ("US", "USA", "UNITED STATES") THEN "United States"
-        WHEN UPPER(TRIM(Lead_Home__dll.Country__c)) IN ("GB", "UK", "UNITED KINGDOM") THEN "United Kingdom"
+        WHEN UPPER(TRIM(Lead_Home__dll.Country__c)) = 'US'
+            OR UPPER(TRIM(Lead_Home__dll.Country__c)) = 'USA'
+            OR UPPER(TRIM(Lead_Home__dll.Country__c)) = 'UNITED STATES'
+            THEN 'United States'
+        WHEN UPPER(TRIM(Lead_Home__dll.Country__c)) = 'GB'
+            OR UPPER(TRIM(Lead_Home__dll.Country__c)) = 'UK'
+            OR UPPER(TRIM(Lead_Home__dll.Country__c)) = 'UNITED KINGDOM'
+            THEN 'United Kingdom'
         ELSE Lead_Home__dll.Country__c
     END AS Country_Normalized__c
 FROM Lead_Home__dll

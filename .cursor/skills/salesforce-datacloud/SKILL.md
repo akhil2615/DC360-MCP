@@ -129,7 +129,8 @@ They produce **measures** (numeric aggregates) and **dimensions** (grouping keys
 4. Write SQL following these rules exactly
 
 **CI SQL syntax rules (different from Query Editor and Streaming Transforms!):**
-- Table/field names used directly — NO double-quoting, NO dot notation prefix
+- Table/field names used directly — NO double-quoting needed
+- Standard SQL dot notation (Table.Field) is fine for disambiguation in JOINs
 - Table aliases supported: `FROM ssot__SalesOrder__dlm` or `ssot__SalesOrder__dlm S`
 - All aliases for measures/dimensions MUST end with `__c` suffix
 - Every SELECT must produce at least one **measure** (aggregate) and one **dimension**
@@ -256,7 +257,7 @@ For full operator details see [dc-syntax-reference.md](dc-syntax-reference.md).
 - Table aliases supported: `FROM ssot__Individual__dlm a`
 - Fields via alias: `a.ssot__FirstName__c`
 - String literals: single quotes `'value'`
-- JOINs: `JOIN table ON (condition)` — parentheses around ON condition
+- JOINs: `JOIN table ON condition`
 - Subqueries and window functions supported
 - Date math: `column + interval '9 hour'`
 - Comments allowed (`--` style)

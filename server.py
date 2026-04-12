@@ -404,7 +404,7 @@ def generate_segment_logic(
         "- Use nested operators (up to 5 levels) inside containers\n\n"
         "### Operator reference\n"
         "Text: Is Equal To, Is Not Equal To, Contains, Does Not Contain, "
-        "Begins With, Is In, Is Not In\n"
+        "Begins With, Exists As A Whole Word, Is In, Is Not In\n"
         "Number: Is Equal To, Is Not Equal To, Is Less Than, Is Less Than Or Equal To, "
         "Is Greater Than, Is Greater Than Or Equal To, Is Between, Is Not Between, No Value\n"
         "Date: Is On, Is Before, Is After, Is Between, Last N Days, Last N Months, "
@@ -415,7 +415,7 @@ def generate_segment_logic(
         "Count, Sum, Average, Min, Max — applied to related records\n\n"
         "### Output format\n"
         "Segment On: <entity>\n"
-        "Type: Standard | Rapid | Waterfall | Real-time\n\n"
+        "Type: Standard | Rapid Publish | Waterfall | Nested | Real-time | Einstein Lookalike\n\n"
         "Direct Attributes:\n"
         "  - Field: <api_name>\n"
         "    Operator: <operator>\n"
@@ -446,8 +446,8 @@ def generate_segment_logic(
         "Execute a SQL query against Data Cloud and return the results. "
         "Use this for troubleshooting data issues, validating field values, "
         "or testing calculated insight logic. "
-        "SQL follows the PostgreSQL dialect — always double-quote identifiers "
-        "and use exact casing. "
+        "SQL uses table/field names directly — no double-quoting needed. "
+        "Table aliases are supported. String literals use single quotes. "
         "Before running a query, use list_data_model_objects / describe_data_model_object "
         "to verify available tables and columns."
     )
@@ -456,9 +456,10 @@ def query(
     sql: str = Field(
         description=(
             "A SQL query in the Data Cloud (PostgreSQL) dialect. "
-            "Always double-quote identifiers and preserve exact casing. "
-            "Example: SELECT \"Email__c\", COUNT(*) AS cnt "
-            "FROM \"UnifiedIndividual__dlm\" GROUP BY \"Email__c\" LIMIT 100"
+            "Use table/field names directly without double-quoting. "
+            "Table aliases supported. String literals use single quotes. "
+            "Example: SELECT ssot__Id__c, ssot__FirstName__c "
+            "FROM ssot__Individual__dlm ORDER BY ssot__LastModifiedDate__c DESC LIMIT 100"
         )
     ),
     dataspace: str = Field(
@@ -562,7 +563,7 @@ def troubleshoot_data(
         "- Table aliases are supported: FROM ssot__Individual__dlm a\n"
         "- Reference fields via alias: a.ssot__FirstName__c\n"
         "- String literals use SINGLE QUOTES: 'value'\n"
-        "- JOINs: JOIN table ON (condition) — parentheses around ON condition\n"
+        "- JOINs: JOIN table ON condition\n"
         "- Subqueries in WHERE and FROM (inline views) are supported\n"
         "- Window functions: ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ...)\n"
         "- Date arithmetic: column + interval '7 days'\n"
@@ -632,7 +633,7 @@ def datacloud_help(
         "- Data ingestion: Data Streams, Connectors (CRM, Marketing Cloud, "
         "  Ingestion API, MuleSoft, S3, etc.)\n"
         "- Identity Resolution: rulesets, match rules, reconciliation rules, "
-        "  UnifiedIndividual__dlm, UnifiedLinkIndividual__dlm\n"
+        "  UnifiedIndividual__dlm, IndividualIdentityLink__dlm\n"
         "- Activation: Activation Targets, Activation Membership, Audience Splitting\n"
         "- Query: PostgreSQL dialect, Query API, Query Editor\n"
         "- Data Graphs and JSON bundles\n"
