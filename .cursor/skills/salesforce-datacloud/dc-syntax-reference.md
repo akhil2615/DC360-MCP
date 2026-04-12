@@ -333,32 +333,130 @@ Bulk Email Msg → Market Segment:    ssot__BulkEmailMessage__dlm.ssot__MarketSe
 
 ---
 
-## Calculated Insights SQL — Syntax and Patterns
+## Calculated Insights SQL — Complete Reference
 
-### CI SQL syntax rules
+### CI SQL core rules
 
 ```
 1. Table/field names used DIRECTLY — NO double-quoting needed
 2. Table aliases supported: FROM ssot__SalesOrder__dlm S
-3. All measure/dimension aliases MUST end with __c suffix:
-   CORRECT:  SUM(amount) AS total_spend__c
-   WRONG:    SUM(amount) AS TotalSpend
+3. All measure/dimension aliases MUST end with __c suffix
 4. Every SELECT must have at least one MEASURE (aggregate) and one DIMENSION
-5. GROUP BY (with space) MUST use ALIAS names:
-   CORRECT:  GROUP BY CustomerId__c
-   WRONG:    GROUP BY UnifiedIndividual__dlm.ssot__Id__c
-6. Write entire CI SQL as a SINGLE LINE — the CI builder parser
-   may split on line breaks and reject remaining text as invalid
+5. GROUP BY (with space) MUST use ALIAS names, NOT field references
+6. Write entire CI SQL as a SINGLE LINE — the CI builder may reject multi-line
 7. String literals use SINGLE QUOTES: 'value'
-7. Standard join path to unified profiles:
-   DMO → IndividualIdentityLink__dlm (SourceRecordId__c) → UnifiedIndividual__dlm (ssot__Id__c)
-8. Use IFNULL for key qualifier matching in JOINs:
+8. Measures (aggregates) BEFORE dimensions in SELECT order
+9. Use IFNULL for key qualifier matching in JOINs:
    AND IFNULL(Table1.KQ_Field__c, '') = IFNULL(Table2.KQ_Field__c, '')
-9. NO date functions in WHERE clause:
-   date_add, CURRENT_DATE, CURRENT_TIMESTAMP, INTERVAL are all rejected
-   Use the CI Lookback Period setting in the UI instead
-10. Put measures (aggregates) BEFORE dimensions in SELECT
+10. Standard join path to unified profiles:
+    DMO → IndividualIdentityLink__dlm → UnifiedIndividual__dlm
 ```
+
+### Supported SQL statements
+
+| Statement | Supported | Notes |
+|-----------|-----------|-------|
+| SELECT | Yes | Measures + dimensions, aliases must end with `__c` |
+| FROM | Yes | DMO table names directly |
+| JOIN | Yes | INNER JOIN, LEFT JOIN, LEFT OUTER JOIN, RIGHT JOIN |
+| WHERE | Yes | Comparison, IN, NOT IN, BETWEEN, IS NULL, IS NOT NULL |
+| GROUP BY | Yes | Must use alias names |
+| HAVING | Yes | Supports window functions: `HAVING RANK() OVER (...) < 1000` |
+| ORDER BY | Yes | For sorting results |
+| LIMIT | Yes | For limiting results |
+| UNION / INTERSECT / EXCEPT | Yes | Set operations |
+| Subquery in FROM | Yes | `FROM (SELECT ...) AS alias` |
+| Subquery in WHERE | Yes | `WHERE field NOT IN (SELECT ...)` |
+| WITH (CTE) | Yes | Common Table Expressions |
+
+### Supported aggregate functions
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `SUM()` | Total | `SUM(amount) AS total__c` |
+| `COUNT()` | Count rows | `COUNT(Id__c) AS count__c` |
+| `AVG()` | Average | `AVG(amount) AS avg__c` |
+| `MIN()` | Minimum | `MIN(amount) AS min__c` |
+| `MAX()` | Maximum | `MAX(date) AS latest__c` |
+| `FIRST()` | Arbitrary value from group | `First(score) AS score__c` |
+| `APPROX_COUNT_DISTINCT()` | Approximate distinct count | For large datasets |
+| `BOOL_AND()` / `BOOL_OR()` | Boolean aggregation | |
+| `STDDEV()` / `VARIANCE()` | Statistical | For analysis |
+| `CORR()` / `COVAR_POP()` | Correlation | For analysis |
+
+### Supported window/analytical functions
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `ROW_NUMBER()` | Unique sequential rank | `ROW_NUMBER() OVER (ORDER BY SUM(x) DESC)` |
+| `RANK()` | Rank with gaps for ties | `RANK() OVER (ORDER BY SUM(x) DESC)` |
+| `DENSE_RANK()` | Rank without gaps | `DENSE_RANK() OVER (ORDER BY SUM(x) DESC)` |
+| `NTILE(n)` | Distribute into n buckets | `NTILE(4) OVER (ORDER BY MAX(date))` |
+| `LAG()` | Access previous row | `LAG(field) OVER (ORDER BY date)` |
+| `LEAD()` | Access next row | `LEAD(field) OVER (ORDER BY date)` |
+| `FIRST_VALUE()` | First value in window | `FIRST_VALUE(field) OVER (...)` |
+
+Window functions support `PARTITION BY` and `ORDER BY` within `OVER()`.
+
+### Supported operators
+
+| Category | Operators |
+|----------|-----------|
+| Comparison | `=`, `<>`, `!=`, `<`, `>`, `<=`, `>=` |
+| Range | `BETWEEN x AND y`, `NOT BETWEEN x AND y` |
+| Set | `IN (...)`, `NOT IN (...)` |
+| Null | `IS NULL`, `IS NOT NULL` |
+| Logical | `AND`, `OR`, `NOT` |
+| Arithmetic | `+`, `-`, `*`, `/`, `%` (modulo), `^` (exponent) |
+
+### Supported conditional expressions
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `CASE WHEN ... THEN ... ELSE ... END` | Conditional logic | Bucketing, scoring |
+| `COALESCE(a, b, c)` | First non-null value | `COALESCE(name, 'Unknown')` |
+| `NULLIF(a, b)` | Returns null if a = b | `NULLIF(value, 0)` |
+| `IFNULL(a, b)` | Returns b if a is null | `IFNULL(KQ_field, '')` |
+
+### Supported string functions
+
+| Function | Description |
+|----------|-------------|
+| `UPPER()`, `LOWER()`, `INITCAP()` | Case transformation |
+| `CONCAT()`, `\|\|` | Concatenation |
+| `LENGTH()`, `CHAR_LENGTH()` | String length |
+| `SUBSTRING()`, `SUBSTR()` | Extract substring |
+| `TRIM()`, `LTRIM()`, `RTRIM()` | Trim whitespace |
+| `POSITION()`, `STRPOS()` | Find substring position |
+| `REPLACE()`, `OVERLAY()` | Replace substring |
+| `SPLIT()` | Split string |
+
+### Supported date/time functions
+
+| Function | Description |
+|----------|-------------|
+| `CDPHour()` | Time-period dimension bucketing |
+| `current_date` | Current date |
+| `current_time` | Current time with timezone |
+| `current_timestamp` | Current timestamp with timezone |
+| `date_add(unit, n, timestamp)` | Add/subtract date units |
+| `datediff(unit, ts1, ts2)` | Difference between timestamps |
+| `to_char()` | Format date to string |
+| `to_date()` | Parse string to date |
+| `to_timestamp()` | Parse string to timestamp |
+
+**CI builder date limitation**: `current_date`, `date_add`, and `INTERVAL` may be
+rejected by the CI builder parser even though they're valid SQL. If date filtering
+fails, use the **Lookback Period** setting in the CI UI instead.
+
+### CI data types
+
+| Type | Measures | Dimensions |
+|------|----------|------------|
+| Number | Yes (SUM, AVG, etc.) | Yes |
+| Text | No | Yes |
+| Date/DateTime | Yes (MIN, MAX) | Yes |
+| Boolean | No | Yes |
 
 ### Types of Insights
 
@@ -380,199 +478,62 @@ Bulk Email Msg → Market Segment:    ssot__BulkEmailMessage__dlm.ssot__MarketSe
 7. Under Dimensions: click (+) → select grouping field (e.g. Unified Individual Id)
 8. Click Publish Now → Save and Run
 
-### Spend by Customer (beginner)
-
-```sql
-SELECT
-    SUM(ssot__SalesOrder__dlm.ssot__GrandTotalAmount__c) AS customer_spend__c,
-    UnifiedIndividual__dlm.ssot__Id__c AS CustomerId__c
-FROM ssot__SalesOrder__dlm
-LEFT JOIN IndividualIdentityLink__dlm
-    ON ssot__SalesOrder__dlm.ssot__SoldToCustomerId__c = IndividualIdentityLink__dlm.SourceRecordId__c
-LEFT JOIN UnifiedIndividual__dlm
-    ON IndividualIdentityLink__dlm.UnifiedRecordId__c = UnifiedIndividual__dlm.ssot__Id__c
-GROUP BY CustomerId__c
-```
-| Measure | Dimension |
-|---------|-----------|
-| customer_spend__c | CustomerId__c |
-
-### Lifetime Value (LTV) with product dimensions
-
-```sql
-SELECT
-    SUM(ssot__SalesOrder__dlm.ssot__GrandTotalAmount__c) AS LTV__c,
-    UnifiedIndividual__dlm.ssot__Id__c AS CustomerId__c,
-    CDPHour(ssot__SalesOrder__dlm.ssot__PurchaseOrderDate__c) AS PurchaseHour__c,
-    ssot__GoodsProduct__dlm.Category__c AS ProductCategory__c,
-    ssot__SalesOrder__dlm.ssot__SalesChannelId__c AS SalesChannel__c
-FROM ssot__SalesOrder__dlm
-LEFT JOIN IndividualIdentityLink__dlm
-    ON ssot__SalesOrder__dlm.ssot__SoldToCustomerId__c = IndividualIdentityLink__dlm.SourceRecordId__c
-LEFT JOIN UnifiedIndividual__dlm
-    ON IndividualIdentityLink__dlm.UnifiedRecordId__c = UnifiedIndividual__dlm.ssot__Id__c
-LEFT JOIN ssot__SalesOrderProduct__dlm
-    ON ssot__SalesOrderProduct__dlm.ssot__SalesOrderId__c = ssot__SalesOrder__dlm.ssot__OrderNumber__c
-LEFT JOIN ssot__GoodsProduct__dlm
-    ON ssot__SalesOrderProduct__dlm.ssot__ProductId__c = ssot__GoodsProduct__dlm.ssot__ProductSKU__c
-GROUP BY CustomerId__c, PurchaseHour__c, ProductCategory__c, SalesChannel__c
-```
-
-### Customer Rank by Spend (window functions)
-
-```sql
-SELECT
-    UnifiedIndividual__dlm.ssot__Id__c AS Unified_Individual__c,
-    ROW_NUMBER() OVER (ORDER BY SUM(ssot__SalesOrder__dlm.ssot__GrandTotalAmount__c) DESC) AS Customer_Rank__c,
-    DENSE_RANK() OVER (ORDER BY SUM(ssot__SalesOrder__dlm.ssot__GrandTotalAmount__c) DESC) AS Customer_Dense_Rank__c,
-    RANK() OVER (ORDER BY SUM(ssot__SalesOrder__dlm.ssot__GrandTotalAmount__c) DESC) AS Customer_Stat_Rank__c
-FROM UnifiedIndividual__dlm
-INNER JOIN IndividualIdentityLink__dlm
-    ON UnifiedIndividual__dlm.ssot__Id__c = IndividualIdentityLink__dlm.UnifiedRecordId__c
-INNER JOIN ssot__SalesOrder__dlm
-    ON IndividualIdentityLink__dlm.SourceRecordId__c = ssot__SalesOrder__dlm.ssot__SoldToCustomerId__c
-GROUP BY Unified_Individual__c
-```
-
-### RFM Scoring with NTILE and subquery
-
-```sql
-SELECT
-    sub.cust_id__c AS id__c,
-    First(sub.rfm_recency__c * 100 + sub.rfm_frequency__c * 10 + sub.rfm_monetary__c) AS rfm_combined__c,
-    First(sub.rfm_recency__c) AS Recency__c,
-    First(sub.rfm_frequency__c) AS Frequency__c,
-    First(sub.rfm_monetary__c) AS Monetary__c
-FROM (
-    SELECT
-        UnifiedIndividual__dlm.ssot__Id__c AS cust_id__c,
-        NTILE(4) OVER (ORDER BY MAX(ssot__SalesOrder__dlm.ssot__PurchaseOrderDate__c)) AS rfm_recency__c,
-        NTILE(4) OVER (ORDER BY COUNT(ssot__SalesOrder__dlm.ssot__Id__c)) AS rfm_frequency__c,
-        NTILE(4) OVER (ORDER BY AVG(ssot__SalesOrder__dlm.ssot__GrandTotalAmount__c)) AS rfm_monetary__c
-    FROM ssot__SalesOrder__dlm
-    LEFT JOIN IndividualIdentityLink__dlm
-        ON ssot__SalesOrder__dlm.ssot__SoldToCustomerId__c = IndividualIdentityLink__dlm.SourceRecordId__c
-    LEFT JOIN UnifiedIndividual__dlm
-        ON UnifiedIndividual__dlm.ssot__Id__c = IndividualIdentityLink__dlm.UnifiedRecordId__c
-    GROUP BY UnifiedIndividual__dlm.ssot__Id__c
-) AS sub
-GROUP BY sub.cust_id__c
-```
-
-### CASE bucketing (driver safety example pattern)
-
-```sql
-SELECT
-    CASE
-        WHEN SUM(engagement_count__c) > 20 THEN 'High'
-        WHEN SUM(engagement_count__c) > 10 THEN 'Medium'
-        WHEN SUM(engagement_count__c) > 0 THEN 'Low'
-        ELSE 'None'
-    END AS engagement_bucket__c,
-    customer_id__c AS id__c
-FROM (
-    SELECT
-        COUNT(ssot__EmailEngagement__dlm.ssot__Id__c) AS engagement_count__c,
-        UnifiedIndividual__dlm.ssot__Id__c AS customer_id__c
-    FROM ssot__EmailEngagement__dlm
-    JOIN IndividualIdentityLink__dlm
-        ON ssot__EmailEngagement__dlm.ssot__IndividualId__c = IndividualIdentityLink__dlm.SourceRecordId__c
-    JOIN UnifiedIndividual__dlm
-        ON IndividualIdentityLink__dlm.UnifiedRecordId__c = UnifiedIndividual__dlm.ssot__Id__c
-    GROUP BY UnifiedIndividual__dlm.ssot__Id__c
-) AS S
-GROUP BY id__c
-```
-
-### Email Open Count per Unified Individual
-
-```sql
-SELECT
-    COUNT(ssot__EmailEngagement__dlm.ssot__Id__c) AS email_open_count__c,
-    UnifiedIndividual__dlm.ssot__Id__c AS customer_id__c
-FROM ssot__EmailEngagement__dlm
-JOIN IndividualIdentityLink__dlm
-    ON IndividualIdentityLink__dlm.SourceRecordId__c = ssot__EmailEngagement__dlm.ssot__IndividualId__c
-    AND ssot__EmailEngagement__dlm.ssot__EngagementChannelActionId__c = 'Open'
-JOIN UnifiedIndividual__dlm
-    ON UnifiedIndividual__dlm.ssot__Id__c = IndividualIdentityLink__dlm.UnifiedRecordId__c
-GROUP BY customer_id__c
-```
-
-### NOT IN with WHERE subquery
-
-```sql
-SELECT
-    AVG(ssot__SalesOrder__dlm.ssot__GrandTotalAmount__c) AS avg__c,
-    ssot__SalesOrder__dlm.ssot__SoldToCustomerId__c AS customer_id__c
-FROM ssot__SalesOrder__dlm
-WHERE ssot__SalesOrder__dlm.ssot__SoldToCustomerId__c NOT IN (
-    SELECT ssot__Individual__dlm.ssot__Id__c
-    FROM ssot__Individual__dlm
-    WHERE ssot__Individual__dlm.Loyalty_Reward_Points__c > 10
-)
-GROUP BY customer_id__c
-```
-
-### CI Supported functions reference
-
-| Category | Functions |
-|----------|-----------|
-| Aggregate | `SUM()`, `COUNT()`, `AVG()`, `MIN()`, `MAX()`, `FIRST()` |
-| Window | `ROW_NUMBER()`, `RANK()`, `DENSE_RANK()`, `NTILE()` with `OVER (ORDER BY ...)` |
-| Conditional | `CASE WHEN ... THEN ... ELSE ... END` |
-| Date | `CDPHour()` for time-period dimensions |
-| Subquery | `NOT IN (subquery)`, inline views `FROM (SELECT ...) AS alias` |
-| String | Standard string functions |
-| Comparison | `=`, `<>`, `<`, `>`, `<=`, `>=`, `AND`, `OR`, `NOT` |
-| JOINs | `INNER JOIN`, `LEFT JOIN`, `LEFT OUTER JOIN` with `ON` |
-
 ### CI builder-specific rules (stricter parser than Query Editor)
-
-The CI SQL builder has a more restrictive parser. These rules are critical:
 
 ```
 1. GROUP BY MUST use ALIAS names:
    CORRECT: GROUP BY customer_id__c
    WRONG:   GROUP BY UnifiedIndividual__dlm.ssot__Id__c
 
-2. SELECT order: measures (aggregates) BEFORE dimensions
+2. Write entire SQL as a SINGLE LINE for CI builder
 
 3. Key qualifier matching in JOINs — use IFNULL:
    AND IFNULL(Table1.KQ_Field__c, '') = IFNULL(Table2.KQ_Field__c, '')
 
-4. HAVING clause — supported for window function filtering:
+4. HAVING with window functions:
    HAVING RANK() OVER (ORDER BY SUM(amount)) < 1000
 
-5. Date arithmetic — may fail in CI builder even though supported in SQL engine:
-   If CURRENT_DATE - INTERVAL '90 days' causes errors, use the CI
-   Lookback Period setting in the UI instead
+5. Date functions in WHERE may be rejected — use Lookback Period setting
 
-6. Non-aggregate WHERE filters — may be rejected by CI builder:
-   If WHERE name IS NOT NULL fails, apply the filter in the Segment instead
-
-7. Always verify syntax against current Salesforce docs before generating CI SQL
-```
-
-### CI GROUP BY rules
-
-```
-CORRECT:
-  SELECT COUNT(x) AS count__c, Table.Field AS dimension__c FROM ... GROUP BY dimension__c
-
-WRONG (field reference instead of alias):
-  GROUP BY Table.Field
-
-IMPORTANT: Write the entire SQL as a single line for the CI builder
+6. Non-aggregate WHERE filters may be rejected — apply in Segment instead
 ```
 
 ### CI JOIN with key qualifier matching (official Trailhead pattern)
 
 ```sql
-JOIN IndividualIdentityLink__dlm
-    ON IndividualIdentityLink__dlm.SourceRecordId__c = ssot__EmailEngagement__dlm.ssot__IndividualId__c
-    AND IFNULL(IndividualIdentityLink__dlm.KQ_SourceRecordId__c, '') = IFNULL(ssot__EmailEngagement__dlm.KQ_IndividualId__c, '')
+JOIN IndividualIdentityLink__dlm ON IndividualIdentityLink__dlm.SourceRecordId__c = ssot__EmailEngagement__dlm.ssot__IndividualId__c AND IFNULL(IndividualIdentityLink__dlm.KQ_SourceRecordId__c, '') = IFNULL(ssot__EmailEngagement__dlm.KQ_IndividualId__c, '')
 ```
+
+### Example: Spend by Customer (single line for CI builder)
+
+```sql
+SELECT SUM(ssot__SalesOrder__dlm.ssot__GrandTotalAmount__c) AS customer_spend__c, UnifiedIndividual__dlm.ssot__Id__c AS CustomerId__c FROM ssot__SalesOrder__dlm JOIN IndividualIdentityLink__dlm ON ssot__SalesOrder__dlm.ssot__SoldToCustomerId__c = IndividualIdentityLink__dlm.SourceRecordId__c AND IFNULL(ssot__SalesOrder__dlm.KQ_SoldToCustomerId__c, '') = IFNULL(IndividualIdentityLink__dlm.KQ_SourceRecordId__c, '') LEFT OUTER JOIN UnifiedIndividual__dlm ON IndividualIdentityLink__dlm.UnifiedRecordId__c = UnifiedIndividual__dlm.ssot__Id__c GROUP BY CustomerId__c
+```
+
+### Example: Email Open Count (single line for CI builder)
+
+```sql
+SELECT COUNT(ssot__EmailEngagement__dlm.ssot__Id__c) AS email_open_count__c, UnifiedIndividual__dlm.ssot__Id__c AS customer_id__c FROM ssot__EmailEngagement__dlm JOIN IndividualIdentityLink__dlm ON IndividualIdentityLink__dlm.SourceRecordId__c = ssot__EmailEngagement__dlm.ssot__IndividualId__c AND IFNULL(IndividualIdentityLink__dlm.KQ_SourceRecordId__c, '') = IFNULL(ssot__EmailEngagement__dlm.KQ_IndividualId__c, '') AND ssot__EmailEngagement__dlm.ssot__EngagementChannelActionId__c = 'Open' JOIN UnifiedIndividual__dlm ON UnifiedIndividual__dlm.ssot__Id__c = IndividualIdentityLink__dlm.UnifiedRecordId__c GROUP BY customer_id__c
+```
+
+### Example: Customer Rank with HAVING (single line for CI builder)
+
+```sql
+SELECT UnifiedIndividual__dlm.ssot__Id__c AS customer_id__c, RANK() OVER (ORDER BY SUM(ssot__SalesOrder__dlm.ssot__GrandTotalAmount__c)) AS customer_rank_based_on_spend__c, SUM(ssot__SalesOrder__dlm.ssot__GrandTotalAmount__c) AS customer_spend__c FROM ssot__SalesOrder__dlm JOIN IndividualIdentityLink__dlm ON (ssot__SalesOrder__dlm.ssot__SoldToCustomerId__c = IndividualIdentityLink__dlm.SourceRecordId__c) AND IFNULL(ssot__SalesOrder__dlm.KQ_SoldToCustomerId__c, '') = IFNULL(IndividualIdentityLink__dlm.KQ_SourceRecordId__c, '') LEFT OUTER JOIN UnifiedIndividual__dlm ON (IndividualIdentityLink__dlm.UnifiedRecordId__c = UnifiedIndividual__dlm.ssot__Id__c) GROUP BY customer_id__c HAVING RANK() OVER (ORDER BY SUM(ssot__SalesOrder__dlm.ssot__GrandTotalAmount__c)) < 1000
+```
+
+### Common CI use cases
+
+| Use case | Measures | Dimensions | Key technique |
+|----------|----------|------------|---------------|
+| Customer Spend | SUM(GrandTotalAmount) | UnifiedIndividualId | Basic aggregate |
+| LTV | SUM(GrandTotalAmount) | UnifiedIndividualId, ProductCategory, CDPHour | Multi-dimension |
+| Customer Rank | ROW_NUMBER/RANK/DENSE_RANK | UnifiedIndividualId | Window functions |
+| RFM Scoring | NTILE(4) for R, F, M | UnifiedIndividualId | Subquery + NTILE |
+| Email Engagement Buckets | CASE on COUNT | UnifiedIndividualId | Subquery + CASE |
+| Website Engagement Score | Weighted COUNT | UnifiedIndividualId | Scoring formula |
+| Social Channel Affinity | COUNT per channel | UnifiedIndividualId, Channel | Multi-dimension |
+| Lead Scoring | Weighted SUM of actions | UnifiedIndividualId | CASE + SUM |
 
 ---
 
