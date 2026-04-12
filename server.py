@@ -342,25 +342,26 @@ def generate_calculated_insight_sql(
 
 @mcp.tool(
     description=(
-        "Generate segment filter logic for a Data Cloud segment. "
-        "Scans the full data model to suggest the correct DMO, field API names, "
-        "and valid filter operators. Output is in the format used by the "
-        "Segment Builder expression editor."
+        "Generate segment logic for a Data Cloud segment. "
+        "Scans the full data model (DMOs and CIs) to suggest the correct "
+        "Segment On entity, direct attributes, related attributes with containers, "
+        "container paths, aggregations, and filter operators. "
+        "Also checks for existing Calculated Insights that can simplify the segment."
     )
 )
 def generate_segment_logic(
     segment_description: str = Field(
         description=(
             "Plain-language description of the audience to build. "
-            "Example: 'All customers in the US who made a purchase in the last 30 days "
-            "and have opted in to email marketing.'"
+            "Example: 'All customers in the US who made at least 2 purchases "
+            "in the last 90 days with total spend > $500.'"
         )
     ),
     dmo_filter: list[str] = Field(
         default=[],
         description=(
             "Optional: limit the schema scan to specific DMO API names. "
-            "If empty, all DMOs are scanned (may be slow for large orgs)."
+            "If empty, all DMOs are scanned."
         ),
     ),
 ) -> str:
@@ -369,41 +370,70 @@ def generate_segment_logic(
     else:
         dmo_list = list_objects(oauth_session, ENTITY_TYPE_DMO)
 
+    ci_list = list_objects(oauth_session, ENTITY_TYPE_CI)
+
     schema_blocks = []
     for dmo in dmo_list:
         try:
             fields = get_fields_for_object(oauth_session, dmo["name"], ENTITY_TYPE_DMO)
             field_list = "\n".join(
-                f"    - \"{f['name']}\" ({f.get('type', 'unknown')})" for f in fields
+                f"    - {f['name']} ({f.get('type', 'unknown')})" for f in fields
             )
-            schema_blocks.append(f"### {dmo['name']} ({dmo.get('category', '')})\n{field_list}")
+            schema_blocks.append(f"### {dmo['name']}\n{field_list}")
         except Exception as e:
             logger.warning(f"Could not fetch fields for {dmo['name']}: {e}")
 
     schema_text = "\n\n".join(schema_blocks)
 
+    ci_text = "\n".join(f"  - {ci['name']}" for ci in ci_list) if ci_list else "(none)"
+
     return (
-        f"## Full data model schema\n{schema_text}\n\n"
+        f"## Available DMOs\n{schema_text}\n\n"
+        f"## Available Calculated Insights\n{ci_text}\n\n"
         f"## Requested segment\n{segment_description}\n\n"
         "## Instructions for the AI assistant\n"
-        "Write Data Cloud segment filter logic. Rules:\n"
-        "- Primary object for segmentation is typically UnifiedIndividual__dlm\n"
-        "- Use exact field API names from the schema above\n"
-        "- Supported operators by type:\n"
-        "    Text:    equals, not equals, contains, starts with, ends with, is null, is not null\n"
-        "    Number:  equals, not equals, greater than, less than, >=, <=, between, is null\n"
-        "    Date:    equals, before, after, between, in last N days/months, is null\n"
-        "    Boolean: is true, is false, is null\n"
-        "- Related object filters use: [RelatedObject__dlm].[FieldApiName]\n"
-        "- Calculated Insight filters use: [InsightName__insight].[MeasureName]\n"
-        "- For count-based rules (e.g. 'at least 2 orders'), use the "
-        "  'Calculated Insights' or 'Related Attribute' filter type\n"
-        "- Present filters as a structured list:\n"
-        "    Object: <dmo_name>\n"
-        "    Field: <field_api_name>\n"
+        "Design a Data Cloud segment using the Segment Builder. "
+        "Present the output as structured Segment Builder steps.\n\n"
+        "### Segment design rules\n"
+        "- Segment On: typically UnifiedIndividual__dlm (use Unified over raw for dedup)\n"
+        "- Direct Attributes: 1:1 or N:1 fields on the Segment On entity\n"
+        "- Related Attributes: 1:N DMOs go inside Containers with aggregation\n"
+        "- Container Path: always choose the SHORTEST path; avoid cyclic paths\n"
+        "- If an existing CI can simplify the logic, use it as a direct attribute\n"
+        "- Merge containers with same path joined by OR into one container\n"
+        "- Use nested operators (up to 5 levels) inside containers\n\n"
+        "### Operator reference\n"
+        "Text: Is Equal To, Is Not Equal To, Contains, Does Not Contain, "
+        "Begins With, Is In, Is Not In\n"
+        "Number: Is Equal To, Is Not Equal To, Is Less Than, Is Less Than Or Equal To, "
+        "Is Greater Than, Is Greater Than Or Equal To, Is Between, Is Not Between, No Value\n"
+        "Date: Is On, Is Before, Is After, Is Between, Last N Days, Last N Months, "
+        "Next N Days, Next N Months, Is Anniversary Of, Day Of Week, Day Of Month, "
+        "This Year, Last Year, Next Year\n"
+        "Boolean: Is True, Is Not True, Is False, Is Not False, Is Unknown, Is Not Unknown\n\n"
+        "### Aggregation types (for containers)\n"
+        "Count, Sum, Average, Min, Max — applied to related records\n\n"
+        "### Output format\n"
+        "Segment On: <entity>\n"
+        "Type: Standard | Rapid | Waterfall | Real-time\n\n"
+        "Direct Attributes:\n"
+        "  - Field: <api_name>\n"
         "    Operator: <operator>\n"
-        "    Value: <value>\n"
-        "- Combine conditions with AND / OR groups\n"
+        "    Value: <value>\n\n"
+        "Container N (Related: <dmo_name>):\n"
+        "  Path: SegmentOn → ... → DMO\n"
+        "  Aggregation: <type> of <field>\n"
+        "  Operator: <operator>\n"
+        "  Value: <value>\n"
+        "  Filters:\n"
+        "    - Field: <field>\n"
+        "      Operator: <operator>\n"
+        "      Value: <value>\n\n"
+        "Logic: Container 1 AND/OR Container 2\n\n"
+        "### Best practices to mention\n"
+        "- Add Event Date Time filters on engagement containers\n"
+        "- Use CIs for heavy metrics instead of in-segment computation\n"
+        "- For waterfall segments, list the priority order\n"
     )
 
 
