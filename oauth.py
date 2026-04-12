@@ -161,7 +161,7 @@ class OAuthSession:
             f"elapsed={response.elapsed.total_seconds():.2f}s"
         )
         if response.status_code >= 400:
-            logger.error(f"Token exchange failed: {response.text}")
+            logger.error(f"Token exchange failed: status={response.status_code}")
         response.raise_for_status()
 
         logger.info("Successfully obtained access token")
@@ -217,7 +217,7 @@ class OAuthSession:
             f"elapsed={response.elapsed.total_seconds():.2f}s"
         )
         if response.status_code >= 400:
-            logger.error(f"DC token exchange failed: {response.text}")
+            logger.error(f"DC token exchange failed: status={response.status_code}")
         response.raise_for_status()
         return response.json()
 

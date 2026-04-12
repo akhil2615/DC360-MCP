@@ -1,4 +1,6 @@
 .env
+.env.*
+!.env.example
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -7,3 +9,9 @@ venv/
 dist/
 build/
 *.log
+*.key
+*.pem
+*.cert
+credentials.json
+secrets.json
+mcp.json

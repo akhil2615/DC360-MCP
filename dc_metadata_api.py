@@ -147,6 +147,9 @@ def _sql_list_objects(
     oauth_session: OAuthSession, entity_type: str
 ) -> List[Dict[str, Any]]:
     pattern = _SUFFIX_MAP.get(entity_type, "%")
+    import re
+    if not re.match(r'^[A-Za-z0-9_%\\]+$', pattern):
+        raise ValueError(f"Invalid pattern: '{pattern}'")
     result  = run_query(oauth_session, _LIST_SQL.format(pattern=pattern))
     return [
         {"name": row[0], "displayName": row[1], "category": entity_type}
@@ -157,6 +160,9 @@ def _sql_list_objects(
 def _sql_get_fields(
     oauth_session: OAuthSession, entity_name: str
 ) -> List[Dict[str, Any]]:
+    import re
+    if not re.match(r'^[A-Za-z0-9_]+$', entity_name):
+        raise ValueError(f"Invalid entity name: '{entity_name}'")
     result = run_query(oauth_session, _FIELDS_SQL.format(table=entity_name))
     return [
         {"name": row[0], "type": row[1], "displayName": row[2]}

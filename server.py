@@ -514,6 +514,9 @@ def list_tables() -> list[str]:
 def describe_table(
     table: str = Field(description="The table name (API name with suffix, e.g. 'UnifiedIndividual__dlm')."),
 ) -> list[str]:
+    import re
+    if not re.match(r'^[A-Za-z0-9_]+$', table):
+        raise ValueError(f"Invalid table name: '{table}'. Only alphanumeric characters and underscores allowed.")
     sql = (
         "SELECT a.attname, t.typname "
         "FROM pg_catalog.pg_namespace n "
