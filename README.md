@@ -103,10 +103,14 @@ cd DC360-MCP
 
 ### Step 2: Install Python (if needed)
 
-Check if Python is installed:
+Check if Python is installed (the correct command depends on your install method):
 
 ```bash
+# Try whichever works on your system:
 python --version
+python3 --version
+python3 -V
+python -V
 ```
 
 You need **Python 3.10 or higher**. If not installed:
@@ -119,7 +123,10 @@ You need **Python 3.10 or higher**. If not installed:
 
 ```bash
 # Create virtual environment
+# Use whichever python command worked in Step 2:
 python -m venv .venv
+# or
+python3 -m venv .venv
 
 # Activate it
 # Windows (PowerShell):
@@ -237,7 +244,11 @@ This is a **one-time setup per org**. Follow the detailed guide in
 }
 ```
 
-6. **Replace** `YOUR_USERNAME` with your actual username
+6. **Replace** `YOUR_USERNAME` with your **operating-system username** (the
+   one in your home directory path) — **NOT** your Salesforce username.
+   - Windows: run `echo $env:USERNAME` in PowerShell, or look at your user
+     folder name under `C:\Users\`
+   - macOS / Linux: run `whoami` or `echo $USER`
 7. **Paste** your Consumer Key and Consumer Secret from Step 4
 8. **Save** the file (`Ctrl + S`)
 

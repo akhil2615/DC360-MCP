@@ -64,7 +64,22 @@ DC token  → used for Data Cloud Direct API  ({c360a_url}/api/v1/...)
 - String: `LEFT`, `RIGHT`, `MID`, `SUBSTITUTE`, `TRIM`, `UPPER`, `LOWER`,
   `LEN`, `EXTRACT`, `PROPER`
 - Date: `PARSEDATE`, `DATE`, `DATEDIFF`, `DAYPRECISION`, `NOW()`, `TODAY()`
-- Type: `NUMBER`, `TEXT`, `MD5`, `ABS`
+- Type: `NUMBER`, `MD5`, `ABS`
+- **No `TEXT()` function** in this dialect. To coerce any value to a string,
+  concatenate empty string: `sourceField['MyField'] + ""`
+- **`IF` branches must return the same type.** Returning bare `null` from one
+  branch while the other returns a Date/Number will fail validation.
+  Use a sentinel value (e.g. `PARSEDATE("19000101","yyyyMMdd")`) or rely on
+  the function's own null-handling instead of wrapping in `IF`.
+
+**Numeric `YYYYMMDD` → Date pattern (validated):**
+```
+PARSEDATE(sourceField['REPORTING_DTE'] + "", "yyyyMMdd")
+```
+`PARSEDATE` returns null on null/empty input, so an outer `IF` null guard is
+unnecessary (and will likely fail type-checking).
+Format tokens are case-sensitive: `yyyy`=year, `MM`=month, `dd`=day,
+`HH`=hour, `mm`=minutes, `ss`=seconds.
 
 For more patterns see [dc-syntax-reference.md](dc-syntax-reference.md).
 
@@ -255,7 +270,51 @@ For full operator details see [dc-syntax-reference.md](dc-syntax-reference.md).
 
 ---
 
-### 5. Troubleshooting queries (Query Editor)
+### 5. Batch Data Transforms (BDT) — JSON generation
+
+When the user asks to **build / create / generate a batch data transform** (or asks
+for a JSON they can **import** into the BDT canvas), generate a complete BDT
+definition JSON that they can save as `<name>.json` and import via
+**Data Cloud → Data Transforms → New → Import Definition**.
+
+**Workflow:**
+1. Read [dc-batch-data-transform-reference.md](dc-batch-data-transform-reference.md)
+   for the full node catalog and JSON shape.
+2. Clarify only what's missing: source DLO/DMO(s), target object, key transformations
+   (joins, filters, formulas, aggregations), `writeMode` (`OVERWRITE` / `APPEND` /
+   `UPSERT`), and dataspace (default: `default`).
+3. Call `list_data_lake_objects` / `describe_data_lake_object` (and the DMO
+   equivalents) to confirm every input field and target field. Never invent names.
+4. Plan the node graph: input(s) → joins → filters → formulas → aggregations → output.
+5. Emit the JSON in **one fenced ```json code block** containing the full
+   `{ "version", "nodes", "ui" }` document.
+6. Tell the user how to import and what manual mapping (if any) is needed in the canvas.
+
+**Critical rules (the BDT parser is strict):**
+- Top-level keys: `version` (`"56.0"`), `nodes` (map keyed by node ID), `ui`.
+- Every node has `action`, `parameters`, `sources`. `sources: []` **only** for `load`.
+- Every node ID in `nodes` must have a matching `ui.nodes` entry; every
+  `sources` link must appear in `ui.connectors`.
+- Join `sources` order = `[left, right]`; right-side fields are addressed downstream
+  as `<rightQualifier>.<FieldName>`.
+- Formula expressions: qualified columns from joins use **double-quoted** identifiers
+  (`"Acct.Name__c"`); string literals use **single quotes**; multi-line allowed via `\n`.
+  No SQL comments.
+- Aggregate `action` values: `SUM`, `COUNT`, `AVG`, `MIN`, `MAX`, `UNIQUE`, `FIRST`, `LAST`.
+- Output `writeMode`: `OVERWRITE` (default), `APPEND`, or `UPSERT` (UPSERT requires a PK
+  on the target). The target object must already exist in Data Cloud.
+- Action → UI `type` mapping (full table in the reference doc): `load`→`LOAD_DATASET`,
+  `appendV2`→`APPEND`, `schema`→`DROP_FIELDS`/`EDIT_ATTRIBUTES`, `typeCast`→`TO_MEASURE`,
+  `extractGrains`→`EXTRACT`, `outputD360`→`OUTPUT`.
+
+For the full node catalog (load, join, appendV2, filter, formula, schema,
+typeCast, extractGrains, aggregate, bucket, outputD360), all parameter shapes,
+and a complete end-to-end example, see
+[dc-batch-data-transform-reference.md](dc-batch-data-transform-reference.md).
+
+---
+
+### 6. Troubleshooting queries (Query Editor)
 
 1. Call `troubleshoot_data(issue_description, table_names)` → schema + diagnostic rules
 2. Write targeted queries using **Query Editor SQL syntax** (different from Calculated Insights)
