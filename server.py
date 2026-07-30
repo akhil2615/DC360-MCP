@@ -6,6 +6,8 @@ segment logic, and ad-hoc troubleshooting queries.
 """
 import logging
 import os
+import re
+from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -22,6 +24,29 @@ from dc_metadata_api import (
     list_objects,
     _parse_display_name,
 )
+from dc_admin_api import (
+    list_data_spaces as _list_data_spaces,
+    list_data_sources as _list_data_sources,
+    list_data_connectors as _list_data_connectors,
+    list_data_streams as _list_data_streams,
+    list_segments as _list_segments,
+    list_batch_data_transforms as _list_batch_data_transforms,
+    list_streaming_data_transforms as _list_streaming_data_transforms,
+    list_activation_targets as _list_activation_targets,
+    list_activations as _list_activations,
+    list_identity_resolutions as _list_identity_resolutions,
+    list_data_bundles as _list_data_bundles,
+    get_org_inventory as _get_org_inventory,
+    probe_endpoints as _probe_endpoints,
+)
+from datacloud_platform.ops_tools import build_ssot_path, safe_mutation, safe_read
+from datacloud_platform.pipeline_tools import (
+    deploy_check as _pipeline_deploy_check,
+    retrieve_metadata as _pipeline_retrieve,
+    run_git_diff_mode as _run_git_diff_mode,
+)
+from datacloud_platform.blueprint_tools import generate_blueprint_artifacts
+from datacloud_platform.contracts import op_result
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +56,13 @@ sf_org: OAuthConfig = OAuthConfig.from_env()
 oauth_session: OAuthSession = OAuthSession(sf_org)
 
 DEFAULT_LIST_TABLE_FILTER = os.getenv("DEFAULT_LIST_TABLE_FILTER", "%")
+# Allow only characters valid in a SQL LIKE pattern for table names so the
+# value can be safely interpolated into the pg_catalog query in list_tables().
+if not re.match(r"^[A-Za-z0-9_%]+$", DEFAULT_LIST_TABLE_FILTER):
+    raise ValueError(
+        f"Invalid DEFAULT_LIST_TABLE_FILTER: {DEFAULT_LIST_TABLE_FILTER!r}. "
+        "Only letters, digits, underscore, and '%' are permitted."
+    )
 
 # ---------------------------------------------------------------------------
 # Schema discovery — Data Lake Objects (DLOs)
@@ -131,6 +163,193 @@ def describe_calculated_insight(
     ),
 ) -> dict:
     return describe_object(oauth_session, ci_name, ENTITY_TYPE_CI)
+
+
+# ---------------------------------------------------------------------------
+# Org inventory discovery — Data Spaces, Data Streams, Sources, Segments,
+# Transforms, Activations, Identity Resolutions, Data Bundles
+#
+# These tools call the Salesforce Connect REST API and fall back to SOQL
+# against the corresponding SObjects. Every function returns an envelope:
+#   {category, count, source, records: [...], attempts: [...]}
+# The attempts trail is useful when a category is empty — it shows which
+# candidate endpoints/SObjects were tried and how each responded.
+# ---------------------------------------------------------------------------
+
+@mcp.tool(
+    description=(
+        "List all Data Spaces defined in the Data Cloud org. "
+        "Returns each data space's name, display name, and id."
+    )
+)
+def list_data_spaces() -> dict:
+    return _list_data_spaces(oauth_session)
+
+
+@mcp.tool(
+    description=(
+        "List all Data Sources (external systems that feed Data Cloud, e.g. "
+        "S3, SFTP, Marketing Cloud, Snowflake, Core CRM). Distinct from "
+        "Data Connectors, which are the configured connections."
+    )
+)
+def list_data_sources() -> dict:
+    return _list_data_sources(oauth_session)
+
+
+@mcp.tool(
+    description=(
+        "List all Data Connectors — configured connections from Data Cloud "
+        "to an external Data Source. Includes the connector type "
+        "(S3, Ingestion API, Marketing Cloud, Snowflake, Salesforce CRM, etc.) "
+        "and current status. This is what you use to understand which external "
+        "systems the org is actually integrated with."
+    )
+)
+def list_data_connectors() -> dict:
+    return _list_data_connectors(oauth_session)
+
+
+@mcp.tool(
+    description=(
+        "List all Data Streams in the given data space. Each stream ties a "
+        "Data Connector + source object to a target DLO with a refresh mode. "
+        "The primary discovery signal for what data is actively flowing in."
+    )
+)
+def list_data_streams(
+    dataspace: str = Field(
+        default="default",
+        description="Data Cloud data space; defaults to 'default'.",
+    ),
+) -> dict:
+    return _list_data_streams(oauth_session, dataspace)
+
+
+@mcp.tool(
+    description=(
+        "List all Segments defined in the given data space. Returns each "
+        "segment's API name, display name, type (Standard / Rapid Publish / "
+        "Real-time / Waterfall / Nested), publish status, and the DMO it "
+        "segments on."
+    )
+)
+def list_segments(
+    dataspace: str = Field(
+        default="default",
+        description="Data Cloud data space; defaults to 'default'.",
+    ),
+) -> dict:
+    return _list_segments(oauth_session, dataspace)
+
+
+@mcp.tool(
+    description=(
+        "List all Batch Data Transforms in the given data space. "
+        "Batch transforms run on a schedule and materialize into a target DLO/DMO."
+    )
+)
+def list_batch_data_transforms(
+    dataspace: str = Field(
+        default="default",
+        description="Data Cloud data space; defaults to 'default'.",
+    ),
+) -> dict:
+    return _list_batch_data_transforms(oauth_session, dataspace)
+
+
+@mcp.tool(
+    description=(
+        "List all Streaming Data Transforms in the given data space. "
+        "Streaming transforms run in real-time as records arrive on a source "
+        "Data Stream and write to a target DMO."
+    )
+)
+def list_streaming_data_transforms(
+    dataspace: str = Field(
+        default="default",
+        description="Data Cloud data space; defaults to 'default'.",
+    ),
+) -> dict:
+    return _list_streaming_data_transforms(oauth_session, dataspace)
+
+
+@mcp.tool(
+    description=(
+        "List all Activation Targets configured in the org — the downstream "
+        "platforms Data Cloud can activate audiences to (Marketing Cloud, ad "
+        "platforms, webhooks, cloud storage, etc.)."
+    )
+)
+def list_activation_targets() -> dict:
+    return _list_activation_targets(oauth_session)
+
+
+@mcp.tool(
+    description=(
+        "List all Activations — mappings from a Segment to an Activation Target. "
+        "Each activation is what actually pushes an audience out to the target."
+    )
+)
+def list_activations(
+    dataspace: str = Field(
+        default="default",
+        description="Data Cloud data space; defaults to 'default'.",
+    ),
+) -> dict:
+    return _list_activations(oauth_session, dataspace)
+
+
+@mcp.tool(
+    description=(
+        "List all Identity Resolution rulesets. Each ruleset defines how "
+        "source records are matched and reconciled into a Unified object."
+    )
+)
+def list_identity_resolutions() -> dict:
+    return _list_identity_resolutions(oauth_session)
+
+
+@mcp.tool(
+    description=(
+        "List all Data Bundles / Data Kits installed in the org. "
+        "Bundles are pre-built packages of DLOs, DMOs, and mappings."
+    )
+)
+def list_data_bundles() -> dict:
+    return _list_data_bundles(oauth_session)
+
+
+@mcp.tool(
+    description=(
+        "Roll-up: fetch EVERY inventory category in one call. Returns a single "
+        "envelope with data spaces, sources, connectors, streams, segments, "
+        "batch/streaming transforms, activations, targets, identity resolutions, "
+        "and data bundles, plus a snapshot timestamp. Use this to feed a "
+        "dashboard or architecture view. Never raises — partial failures show "
+        "up in each category's 'attempts' trail."
+    )
+)
+def list_org_inventory(
+    dataspace: str = Field(
+        default="default",
+        description="Data Cloud data space; defaults to 'default'.",
+    ),
+) -> dict:
+    return _get_org_inventory(oauth_session, dataspace)
+
+
+@mcp.tool(
+    description=(
+        "Probe the org to find which Data Cloud REST endpoints and SObjects "
+        "actually exist in your API version. Reports the HTTP status for every "
+        "candidate resource and the record count for every candidate SObject. "
+        "Run this ONCE against a new org before relying on list_org_inventory "
+        "so you know which discovery paths will work."
+    )
+)
+def probe_dc_admin_endpoints() -> dict:
+    return _probe_endpoints(oauth_session)
 
 
 # ---------------------------------------------------------------------------
@@ -886,6 +1105,388 @@ def export_dmo_relationships(
             logger.warning(f"Could not fetch relationships for {dmo_name}: {e}")
 
     return "\n".join(rows)
+
+
+# ---------------------------------------------------------------------------
+# Operational API tools (FLASH-style admin surface with dry-run guardrails)
+# ---------------------------------------------------------------------------
+
+@mcp.tool(
+    description=(
+        "Create a Data Lake Object via Data Cloud SSOT API. "
+        "By default runs in dry-run mode and only returns the planned request."
+    )
+)
+def create_dlo(
+    request_body: dict = Field(
+        description="Raw API payload for DLO create call under /ssot/data-lake-objects."
+    ),
+    dry_run: bool = Field(default=True, description="When true, only previews request without executing."),
+) -> dict:
+    return safe_mutation(
+        oauth_session,
+        action="create_dlo",
+        method="POST",
+        path=build_ssot_path("data-lake-objects"),
+        body=request_body,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool(description="Update a Data Lake Object by id with dry-run safeguards.")
+def update_dlo(
+    dlo_id: str = Field(description="DLO id to update."),
+    request_body: dict = Field(description="Raw update payload."),
+    dry_run: bool = Field(default=True, description="When true, preview only."),
+) -> dict:
+    return safe_mutation(
+        oauth_session,
+        action="update_dlo",
+        method="PATCH",
+        path=build_ssot_path(f"data-lake-objects/{dlo_id}"),
+        body=request_body,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool(description="Delete a Data Lake Object by id with dry-run safeguards.")
+def delete_dlo(
+    dlo_id: str = Field(description="DLO id to delete."),
+    dry_run: bool = Field(default=True, description="When true, preview only."),
+) -> dict:
+    return safe_mutation(
+        oauth_session,
+        action="delete_dlo",
+        method="DELETE",
+        path=build_ssot_path(f"data-lake-objects/{dlo_id}"),
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool(description="Create a segment through Data Cloud SSOT API with dry-run safeguards.")
+def create_segment(
+    request_body: dict = Field(description="Raw segment payload for /ssot/segments."),
+    dry_run: bool = Field(default=True, description="When true, preview only."),
+) -> dict:
+    return safe_mutation(
+        oauth_session,
+        action="create_segment",
+        method="POST",
+        path=build_ssot_path("segments"),
+        body=request_body,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool(description="Update a segment by id with dry-run safeguards.")
+def update_segment(
+    segment_id: str = Field(description="Segment id to update."),
+    request_body: dict = Field(description="Raw update payload."),
+    dry_run: bool = Field(default=True, description="When true, preview only."),
+) -> dict:
+    return safe_mutation(
+        oauth_session,
+        action="update_segment",
+        method="PATCH",
+        path=build_ssot_path(f"segments/{segment_id}"),
+        body=request_body,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool(description="Delete a segment by id with dry-run safeguards.")
+def delete_segment(
+    segment_id: str = Field(description="Segment id to delete."),
+    dry_run: bool = Field(default=True, description="When true, preview only."),
+) -> dict:
+    return safe_mutation(
+        oauth_session,
+        action="delete_segment",
+        method="DELETE",
+        path=build_ssot_path(f"segments/{segment_id}"),
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool(description="Update an activation by id with dry-run safeguards.")
+def update_activation(
+    activation_id: str = Field(description="Activation id to update."),
+    request_body: dict = Field(description="Raw update payload."),
+    dry_run: bool = Field(default=True, description="When true, preview only."),
+) -> dict:
+    return safe_mutation(
+        oauth_session,
+        action="update_activation",
+        method="PATCH",
+        path=build_ssot_path(f"activations/{activation_id}"),
+        body=request_body,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool(description="Delete an activation by id with dry-run safeguards.")
+def delete_activation(
+    activation_id: str = Field(description="Activation id to delete."),
+    dry_run: bool = Field(default=True, description="When true, preview only."),
+) -> dict:
+    return safe_mutation(
+        oauth_session,
+        action="delete_activation",
+        method="DELETE",
+        path=build_ssot_path(f"activations/{activation_id}"),
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool(description="Create or replace a DLO-DMO mapping with dry-run safeguards.")
+def create_dlo_dmo_mapping(
+    request_body: dict = Field(description="Raw mapping payload for /ssot/data-model-object-mappings."),
+    dry_run: bool = Field(default=True, description="When true, preview only."),
+) -> dict:
+    return safe_mutation(
+        oauth_session,
+        action="create_dlo_dmo_mapping",
+        method="POST",
+        path=build_ssot_path("data-model-object-mappings"),
+        body=request_body,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool(description="Delete a DLO-DMO mapping by id with dry-run safeguards.")
+def delete_dlo_dmo_mapping(
+    mapping_id: str = Field(description="Mapping id to delete."),
+    dry_run: bool = Field(default=True, description="When true, preview only."),
+) -> dict:
+    return safe_mutation(
+        oauth_session,
+        action="delete_dlo_dmo_mapping",
+        method="DELETE",
+        path=build_ssot_path(f"data-model-object-mappings/{mapping_id}"),
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool(description="Update a mapping by delete+create plan with dry-run safeguards.")
+def update_dlo_dmo_mapping(
+    mapping_id: str = Field(description="Existing mapping id to replace."),
+    request_body: dict = Field(description="Replacement payload for create operation."),
+    dry_run: bool = Field(default=True, description="When true, preview only."),
+) -> dict:
+    delete_plan = safe_mutation(
+        oauth_session,
+        action="update_dlo_dmo_mapping.delete_phase",
+        method="DELETE",
+        path=build_ssot_path(f"data-model-object-mappings/{mapping_id}"),
+        dry_run=dry_run,
+    )
+    create_plan = safe_mutation(
+        oauth_session,
+        action="update_dlo_dmo_mapping.create_phase",
+        method="POST",
+        path=build_ssot_path("data-model-object-mappings"),
+        body=request_body,
+        dry_run=dry_run,
+    )
+    return op_result(
+        action="update_dlo_dmo_mapping",
+        summary="Generated two-phase mapping replacement result.",
+        details={"delete_phase": delete_plan, "create_phase": create_plan},
+        warnings=["This operation is modeled as delete + create to match platform behavior."],
+    )
+
+
+@mcp.tool(description="Create a data transform with dry-run safeguards.")
+def create_data_transform(
+    request_body: dict = Field(description="Raw payload for /ssot/data-transforms."),
+    dry_run: bool = Field(default=True, description="When true, preview only."),
+) -> dict:
+    return safe_mutation(
+        oauth_session,
+        action="create_data_transform",
+        method="POST",
+        path=build_ssot_path("data-transforms"),
+        body=request_body,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool(description="Update a data transform by id with dry-run safeguards.")
+def update_data_transform(
+    transform_id: str = Field(description="Transform id to update."),
+    request_body: dict = Field(description="Raw update payload."),
+    dry_run: bool = Field(default=True, description="When true, preview only."),
+) -> dict:
+    return safe_mutation(
+        oauth_session,
+        action="update_data_transform",
+        method="PUT",
+        path=build_ssot_path(f"data-transforms/{transform_id}"),
+        body=request_body,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool(description="Delete a data transform by id with dry-run safeguards.")
+def delete_data_transform(
+    transform_id: str = Field(description="Transform id to delete."),
+    dry_run: bool = Field(default=True, description="When true, preview only."),
+) -> dict:
+    return safe_mutation(
+        oauth_session,
+        action="delete_data_transform",
+        method="DELETE",
+        path=build_ssot_path(f"data-transforms/{transform_id}"),
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool(description="Get data transform run history by transform id.")
+def get_data_transform_run_history(
+    transform_id: str = Field(description="Transform id to inspect."),
+) -> dict:
+    return safe_read(
+        oauth_session,
+        action="get_data_transform_run_history",
+        path=build_ssot_path(f"data-transforms/{transform_id}/runs"),
+    )
+
+
+@mcp.tool(description="List Data Graph definitions.")
+def list_data_graphs() -> dict:
+    return safe_read(oauth_session, "list_data_graphs", build_ssot_path("data-graphs"))
+
+
+@mcp.tool(description="Create a Data Graph with dry-run safeguards.")
+def create_data_graph(
+    request_body: dict = Field(description="Raw payload for /ssot/data-graphs."),
+    dry_run: bool = Field(default=True, description="When true, preview only."),
+) -> dict:
+    return safe_mutation(
+        oauth_session,
+        action="create_data_graph",
+        method="POST",
+        path=build_ssot_path("data-graphs"),
+        body=request_body,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool(description="Delete a Data Graph by id with dry-run safeguards.")
+def delete_data_graph(
+    graph_id: str = Field(description="Data graph id to delete."),
+    dry_run: bool = Field(default=True, description="When true, preview only."),
+) -> dict:
+    return safe_mutation(
+        oauth_session,
+        action="delete_data_graph",
+        method="DELETE",
+        path=build_ssot_path(f"data-graphs/{graph_id}"),
+        dry_run=dry_run,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Pipeline tools (org diff, retrieve, promote, deploy check)
+# ---------------------------------------------------------------------------
+
+@mcp.tool(
+    description=(
+        "Compare metadata drift in one of three modes: branch-vs-branch, "
+        "org-vs-branch, org-vs-org (folder-vs-folder)."
+    )
+)
+def run_org_diff(
+    mode: str = Field(description="One of: branch-vs-branch, org-vs-branch, org-vs-org."),
+    left: str = Field(description="Left side branch or folder path."),
+    right: str = Field(description="Right side branch or folder path."),
+) -> dict:
+    repo_root = Path(__file__).resolve().parent
+    result = _run_git_diff_mode(mode, left, right, repo_root)
+    return op_result(
+        action="run_org_diff",
+        summary="Diff command completed.",
+        details=result,
+        ok=result.get("exit_code", 1) in (0, 1),
+        warnings=["Exit code 1 can be expected when differences are found."],
+    )
+
+
+@mcp.tool(description="Retrieve Salesforce metadata from an org alias using manifest.")
+def pipeline_retrieve(
+    org_alias: str = Field(description="Salesforce org alias configured in sf CLI."),
+    manifest_path: str = Field(default="salesforce-app/manifest/package.xml", description="Path to manifest file."),
+    dry_run: bool = Field(default=True, description="When true, preview only."),
+) -> dict:
+    repo_root = Path(__file__).resolve().parent
+    return _pipeline_retrieve(repo_root, org_alias, manifest_path, dry_run)
+
+
+@mcp.tool(description="Promote a branch by producing a merge plan.")
+def pipeline_promote(
+    source_branch: str = Field(description="Branch to promote from."),
+    target_branch: str = Field(description="Branch to promote to."),
+    dry_run: bool = Field(default=True, description="When true, returns command plan only."),
+) -> dict:
+    command = f"git checkout {target_branch} && git merge --no-ff {source_branch}"
+    if dry_run:
+        return op_result(
+            action="pipeline_promote",
+            summary="Dry run only. Promotion command not executed.",
+            details={"command": command},
+            warnings=["Set dry_run=false in your own shell flow after review."],
+        )
+    return op_result(
+        action="pipeline_promote",
+        summary="Execution in-process is intentionally blocked for safety.",
+        details={"command": command},
+        ok=False,
+        warnings=["Run this command manually after PR and policy checks."],
+    )
+
+
+@mcp.tool(description="Run check-only deployment with Salesforce CLI.")
+def pipeline_deploy_check(
+    org_alias: str = Field(description="Salesforce org alias configured in sf CLI."),
+    manifest_path: str = Field(default="salesforce-app/manifest/package.xml", description="Path to manifest file."),
+    dry_run: bool = Field(default=True, description="When true, preview only."),
+) -> dict:
+    repo_root = Path(__file__).resolve().parent
+    return _pipeline_deploy_check(repo_root, org_alias, manifest_path, dry_run)
+
+
+# ---------------------------------------------------------------------------
+# Blueprint tooling
+# ---------------------------------------------------------------------------
+
+@mcp.tool(
+    description=(
+        "Generate Data360 blueprint artifacts (JSON + standalone HTML) from local metadata. "
+        "Useful for architecture documentation and reviews."
+    )
+)
+def generate_blueprint(
+    brand_name: str = Field(default="Data360", description="Brand label shown in the report."),
+    metadata_root: str = Field(
+        default="salesforce-app/force-app/main/default",
+        description="Root directory containing Salesforce metadata.",
+    ),
+    output_dir: str = Field(
+        default="artifacts/blueprints",
+        description="Directory where generated JSON and HTML artifacts are written.",
+    ),
+) -> dict:
+    base_dir = Path(__file__).resolve().parent
+    meta_path = (base_dir / metadata_root).resolve()
+    out_path = (base_dir / output_dir).resolve()
+    if not meta_path.exists():
+        return op_result(
+            action="generate_blueprint",
+            summary="Metadata path does not exist.",
+            details={"metadata_root": str(meta_path)},
+            ok=False,
+        )
+    return generate_blueprint_artifacts(meta_path, out_path, brand_name)
 
 
 if __name__ == "__main__":

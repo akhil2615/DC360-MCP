@@ -1,0 +1,9 @@
+# Branch-per-org promotion model
+PROMOTION_ORDER=dev,stage,prod
+
+# Org alias to branch mapping for sf CLI workflows
+# Format: ORG_ALIAS:BRANCH_NAME
+ORG_BRANCH_MAP=dev-org:dev,stage-org:stage,prod-org:prod
+
+# Default package manifest
+DEFAULT_MANIFEST=salesforce-app/manifest/package.xml

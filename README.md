@@ -61,6 +61,33 @@ comprehensive Cursor skill with battle-tested syntax rules.
 
 ---
 
+## Consolidated Platform Additions
+
+This repo now includes consolidated capabilities inspired by FLASH and the
+`d360-skill-*` repos, implemented natively:
+
+- **Operational lifecycle tools** with dry-run guardrails:
+  - `create_dlo`, `update_dlo`, `delete_dlo`
+  - `create_segment`, `update_segment`, `delete_segment`
+  - `update_activation`, `delete_activation`
+  - `create_dlo_dmo_mapping`, `update_dlo_dmo_mapping`, `delete_dlo_dmo_mapping`
+  - `create_data_transform`, `update_data_transform`, `delete_data_transform`
+  - `get_data_transform_run_history`
+  - `list_data_graphs`, `create_data_graph`, `delete_data_graph`
+- **Pipeline workflows**:
+  - `run_org_diff`, `pipeline_retrieve`, `pipeline_promote`, `pipeline_deploy_check`
+- **Architecture documentation workflow**:
+  - `generate_blueprint` (produces JSON + standalone HTML artifacts)
+
+Supporting docs:
+- [Capability matrix](docs/capability-matrix.md)
+- [Pipeline workflows](docs/pipeline-workflows.md)
+- [Migration guide](docs/migration-guide.md)
+- [Role quickstarts](docs/role-quickstarts.md)
+- [Release milestones](docs/release-milestones.md)
+
+---
+
 ## Cursor Skill (Included)
 
 The `.cursor/skills/salesforce-datacloud/` directory contains a comprehensive skill
@@ -182,6 +209,17 @@ This is a **one-time setup per org**. Follow the detailed guide in
 2. Go to **Cursor Settings** (gear icon top-right, or `Ctrl + ,`)
 3. Click **MCP** in the left sidebar
 4. Click **Edit Config** — this opens `mcp.json` in your editor
+
+> **Where this file lives.** "Edit Config" opens Cursor's user-level
+> `mcp.json`, which is **outside this repo**:
+> - **Windows**: `%USERPROFILE%\.cursor\mcp.json`
+> - **macOS / Linux**: `~/.cursor/mcp.json`
+>
+> Because you're about to paste your Salesforce **Consumer Secret** into
+> this file, double-check it isn't being backed up or synced anywhere
+> public (OneDrive, iCloud, a dotfiles repo, Time Machine to a shared
+> drive, etc.). Treat the file like a credential.
+
 5. Add the `datacloud` entry inside `mcpServers`:
 
 **Windows:**
@@ -243,6 +281,13 @@ This is a **one-time setup per org**. Follow the detailed guide in
   }
 }
 ```
+
+> **Note on `autoApprove`.** This key is a **Cursor-specific** extension —
+> it tells Cursor not to ask for confirmation each time the listed read-only
+> tools are called. Other MCP clients (Claude Desktop, etc.) ignore the key
+> safely; you'll just get a per-call confirmation prompt instead. If you
+> prefer to approve every call manually, replace the array with `[]` or
+> remove the key.
 
 6. **Replace** `YOUR_USERNAME` with your **operating-system username** (the
    one in your home directory path) — **NOT** your Salesforce username.
@@ -422,6 +467,7 @@ DC360-MCP/
 ├── .env.example                — Template for credentials
 ├── CONNECTED_APP_SETUP.md      — Detailed Connected App guide
 ├── README.md                   — This file
+├── samples/                    — Example outputs from the export tools (optional, for reference)
 └── .cursor/
     └── skills/
         └── salesforce-datacloud/
