@@ -314,7 +314,7 @@ and a complete end-to-end example, see
 
 ---
 
-### 6. Troubleshooting queries (Query Editor)
+### 7. Troubleshooting queries (Query Editor)
 
 1. Call `troubleshoot_data(issue_description, table_names)` → schema + diagnostic rules
 2. Write targeted queries using **Query Editor SQL syntax** (different from Calculated Insights)
@@ -348,9 +348,7 @@ For full query templates see [dc-syntax-reference.md](dc-syntax-reference.md).
 
 ---
 
----
-
-### 6. Documenting DLO fields, DMO fields, and mappings
+### 8. Documenting DLO fields, DMO fields, and mappings
 
 When the user asks to list, document, or export fields or mappings:
 
@@ -424,3 +422,8 @@ Before generating ANY code (formula, streaming transform, CI SQL, query, segment
 ## Additional syntax reference
 
 For full function reference and advanced examples, see [dc-syntax-reference.md](dc-syntax-reference.md).
+
+## Consolidated platform workflows
+
+- For deployment promotions and drift checks, use [workflow-deploy-diff.md](workflow-deploy-diff.md).
+- For architecture documentation output, use [workflow-blueprint.md](workflow-blueprint.md).
